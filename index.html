@@ -457,7 +457,39 @@
             const hostPlayer = createPlayer(playerName, 'host');
             gameState.players.push(hostPlayer);
 
-            showStatus(`Game created! Share code: ${gameState.gameCode}`, 'success');
+            // Store host game in localStorage for sharing
+            const hostData = {
+                gameCode: gameState.gameCode,
+                hostName: playerName,
+                players: gameState.players,
+                timestamp: Date.now()
+            };
+            localStorage.setItem(`game_${gameState.gameCode}`, JSON.stringify(hostData));
+
+            // Show permanent game code
+            showStatus(`Game created! Share this code: ${gameState.gameCode}`, 'success');
+            
+            // Update the connection panel to show the code prominently
+            const connectionPanel = document.getElementById('connectionPanel');
+            const codeDisplay = document.createElement('div');
+            codeDisplay.style.cssText = `
+                background: #e8f5e9;
+                border: 2px solid #4caf50;
+                border-radius: 10px;
+                padding: 20px;
+                margin: 20px 0;
+                text-align: center;
+                font-size: 24px;
+                font-weight: bold;
+                color: #2e7d32;
+            `;
+            codeDisplay.innerHTML = `
+                <div>🎮 Game Code:</div>
+                <div style="font-size: 36px; margin: 10px 0; letter-spacing: 3px;">${gameState.gameCode}</div>
+                <div style="font-size: 14px; color: #666;">Share this code with other players</div>
+            `;
+            connectionPanel.insertBefore(codeDisplay, document.getElementById('playersWaiting'));
+            
             showLobby();
         }
 
@@ -469,27 +501,77 @@
 
         async function joinGame() {
             const playerName = document.getElementById('playerName').value.trim();
-            const gameCode = document.getElementById('gameCode').value.trim();
+            const gameCode = document.getElementById('gameCode').value.trim().toUpperCase();
             
             if (!playerName || !gameCode) {
                 showStatus('Please enter your name and game code', 'error');
                 return;
             }
 
-            gameState.playerId = Math.random().toString(36).substr(2, 9);
-            gameState.gameCode = gameCode;
-            
-            // In a real implementation, this would connect to the host via WebRTC
-            // For now, we'll simulate joining
             showStatus('Connecting to game...', 'info');
             
-            // Simulate connection delay
-            setTimeout(() => {
+            // Check if game exists in localStorage
+            const gameData = localStorage.getItem(`game_${gameCode}`);
+            if (!gameData) {
+                showStatus('Game not found! Check your code.', 'error');
+                return;
+            }
+
+            try {
+                const hostData = JSON.parse(gameData);
+                
+                // Check if game is too old (30 minutes)
+                if (Date.now() - hostData.timestamp > 30 * 60 * 1000) {
+                    showStatus('Game session expired', 'error');
+                    return;
+                }
+
+                gameState.playerId = Math.random().toString(36).substr(2, 9);
+                gameState.gameCode = gameCode;
+                gameState.isHost = false;
+                
+                // Create new player
                 const newPlayer = createPlayer(playerName, gameState.playerId);
-                gameState.players.push(newPlayer);
+                
+                // Add to existing players
+                hostData.players.push(newPlayer);
+                gameState.players = hostData.players;
+                
+                // Update stored game data
+                localStorage.setItem(`game_${gameCode}`, JSON.stringify(hostData));
+                
+                // Notify about successful connection
                 showStatus('Connected to game!', 'success');
+                
+                // Show that we're connected to the host's game
+                const connectionPanel = document.getElementById('connectionPanel');
+                const connectionInfo = document.createElement('div');
+                connectionInfo.style.cssText = `
+                    background: #e3f2fd;
+                    border: 2px solid #2196f3;
+                    border-radius: 10px;
+                    padding: 15px;
+                    margin: 20px 0;
+                    text-align: center;
+                `;
+                connectionInfo.innerHTML = `
+                    <div><strong>✅ Connected to ${hostData.hostName}'s game</strong></div>
+                    <div>Game Code: ${gameCode}</div>
+                    <div style="font-size: 12px; color: #666; margin-top: 5px;">
+                        Waiting for host to start the game...
+                    </div>
+                `;
+                connectionPanel.insertBefore(connectionInfo, document.getElementById('playersWaiting'));
+                
                 showLobby();
-            }, 1000);
+                
+                // Check for game updates periodically
+                startGameUpdateLoop();
+                
+            } catch (error) {
+                showStatus('Error connecting to game', 'error');
+                console.error('Join game error:', error);
+            }
         }
 
         function createPlayer(name, id) {
@@ -532,6 +614,39 @@
             });
         }
 
+        function startGameUpdateLoop() {
+            // Check for game updates every 2 seconds
+            const updateInterval = setInterval(() => {
+                if (gameState.gameStarted) {
+                    clearInterval(updateInterval);
+                    return;
+                }
+                
+                const gameData = localStorage.getItem(`game_${gameState.gameCode}`);
+                if (gameData) {
+                    try {
+                        const hostData = JSON.parse(gameData);
+                        
+                        // Update player list if changed
+                        if (hostData.players.length !== gameState.players.length) {
+                            gameState.players = hostData.players;
+                            updatePlayersList();
+                        }
+                        
+                        // Check if game started
+                        if (hostData.gameStarted && !gameState.gameStarted) {
+                            gameState = { ...gameState, ...hostData };
+                            startGame();
+                            clearInterval(updateInterval);
+                        }
+                        
+                    } catch (error) {
+                        console.error('Error checking game updates:', error);
+                    }
+                }
+            }, 2000);
+        }
+
         function startGame() {
             if (gameState.players.length < 2) {
                 showStatus('Need at least 2 players to start', 'error');
@@ -540,6 +655,19 @@
 
             gameState.gameStarted = true;
             gameState.currentPlayerIndex = 0;
+            
+            // If host, update the stored game data
+            if (isHost) {
+                const gameData = localStorage.getItem(`game_${gameState.gameCode}`);
+                if (gameData) {
+                    const hostData = JSON.parse(gameData);
+                    hostData.gameStarted = true;
+                    hostData.currentPlayerIndex = 0;
+                    hostData.turn = 1;
+                    hostData.phase = 'roll';
+                    localStorage.setItem(`game_${gameState.gameCode}`, JSON.stringify(hostData));
+                }
+            }
             
             // Hide connection panel and show game board
             document.getElementById('connectionPanel').style.display = 'none';
