@@ -1,0 +1,700 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Machi Koro</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Arial', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .game-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+
+        .header {
+            background: #2c3e50;
+            color: white;
+            padding: 20px;
+            text-align: center;
+        }
+
+        .game-area {
+            display: grid;
+            grid-template-columns: 1fr 300px;
+            gap: 20px;
+            padding: 20px;
+        }
+
+        .main-play-area {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .player-area {
+            border: 2px solid #3498db;
+            border-radius: 10px;
+            padding: 15px;
+            background: #f8f9fa;
+        }
+
+        .player-area.current-player {
+            border-color: #e74c3c;
+            background: #fff5f5;
+        }
+
+        .player-info {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .player-name {
+            font-size: 18px;
+            font-weight: bold;
+        }
+
+        .coins {
+            background: #f39c12;
+            color: white;
+            padding: 5px 10px;
+            border-radius: 20px;
+            font-weight: bold;
+        }
+
+        .player-cards {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .card {
+            width: 100px;
+            height: 140px;
+            border: 2px solid #bdc3c7;
+            border-radius: 8px;
+            padding: 8px;
+            background: white;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            font-size: 12px;
+            position: relative;
+            transition: transform 0.2s;
+        }
+
+        .card:hover {
+            transform: translateY(-2px);
+        }
+
+        .card.blue { border-color: #3498db; background: #ebf3fd; }
+        .card.green { border-color: #27ae60; background: #e8f5e8; }
+        .card.red { border-color: #e74c3c; background: #fdeaea; }
+        .card.purple { border-color: #9b59b6; background: #f4ecf7; }
+
+        .card-name {
+            font-weight: bold;
+            text-align: center;
+            font-size: 10px;
+        }
+
+        .card-cost {
+            position: absolute;
+            top: -8px;
+            right: -8px;
+            background: #f39c12;
+            color: white;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 10px;
+            font-weight: bold;
+        }
+
+        .card-activation {
+            text-align: center;
+            background: #34495e;
+            color: white;
+            border-radius: 15px;
+            padding: 2px 6px;
+            font-size: 10px;
+            margin: 5px 0;
+        }
+
+        .card-effect {
+            font-size: 9px;
+            text-align: center;
+            flex-grow: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .marketplace {
+            background: #ecf0f1;
+            border-radius: 10px;
+            padding: 15px;
+        }
+
+        .marketplace-title {
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 15px;
+            text-align: center;
+        }
+
+        .marketplace-cards {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+        }
+
+        .marketplace-card {
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+
+        .marketplace-card:hover {
+            transform: scale(1.05);
+        }
+
+        .marketplace-card.disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .control-area {
+            background: #34495e;
+            color: white;
+            padding: 20px;
+            text-align: center;
+        }
+
+        .dice-area {
+            margin-bottom: 20px;
+        }
+
+        .dice {
+            display: inline-block;
+            width: 60px;
+            height: 60px;
+            background: white;
+            color: #2c3e50;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            font-weight: bold;
+            margin: 0 5px;
+            border: 2px solid #bdc3c7;
+        }
+
+        .btn {
+            background: #3498db;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .btn:hover {
+            background: #2980b9;
+        }
+
+        .btn:disabled {
+            background: #bdc3c7;
+            cursor: not-allowed;
+        }
+
+        .turn-info {
+            margin-bottom: 15px;
+            font-size: 18px;
+        }
+
+        .landmarks {
+            display: flex;
+            gap: 5px;
+            margin-top: 10px;
+        }
+
+        .landmark {
+            width: 80px;
+            height: 60px;
+            border: 2px solid #9b59b6;
+            border-radius: 6px;
+            background: #f4ecf7;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 10px;
+            text-align: center;
+            position: relative;
+        }
+
+        .landmark.built {
+            background: #d4edda;
+            border-color: #27ae60;
+        }
+
+        .game-log {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 5px;
+            padding: 10px;
+            margin-top: 15px;
+            max-height: 150px;
+            overflow-y: auto;
+            font-size: 14px;
+        }
+
+        .log-entry {
+            margin-bottom: 5px;
+            padding: 2px 0;
+        }
+
+        .winner-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.8);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+
+        .winner-content {
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            text-align: center;
+            max-width: 400px;
+        }
+
+        .winner-title {
+            font-size: 24px;
+            color: #e74c3c;
+            margin-bottom: 15px;
+        }
+    </style>
+</head>
+<body>
+    <div class="game-container">
+        <div class="header">
+            <h1>🏠 Machi Koro 🏠</h1>
+            <p>Build your city and be the first to complete all landmarks!</p>
+        </div>
+
+        <div class="game-area">
+            <div class="main-play-area">
+                <div id="player1" class="player-area current-player">
+                    <div class="player-info">
+                        <span class="player-name">Player 1</span>
+                        <span class="coins">💰 <span id="p1-coins">3</span></span>
+                    </div>
+                    <div class="player-cards" id="p1-cards"></div>
+                    <div class="landmarks" id="p1-landmarks"></div>
+                </div>
+
+                <div id="player2" class="player-area">
+                    <div class="player-info">
+                        <span class="player-name">Player 2</span>
+                        <span class="coins">💰 <span id="p2-coins">3</span></span>
+                    </div>
+                    <div class="player-cards" id="p2-cards"></div>
+                    <div class="landmarks" id="p2-landmarks"></div>
+                </div>
+            </div>
+
+            <div class="sidebar">
+                <div class="control-area">
+                    <div class="turn-info">
+                        <strong id="current-turn">Player 1's Turn</strong>
+                    </div>
+                    
+                    <div class="dice-area">
+                        <div class="dice" id="dice1">1</div>
+                        <div class="dice" id="dice2" style="display: none;">1</div>
+                        <div style="margin-top: 10px;">
+                            <strong>Total: <span id="dice-total">1</span></strong>
+                        </div>
+                    </div>
+
+                    <button class="btn" id="roll-btn" onclick="rollDice()">🎲 Roll Dice</button>
+                    <button class="btn" id="end-turn-btn" onclick="endTurn()" disabled>End Turn</button>
+                </div>
+
+                <div class="marketplace">
+                    <h3 class="marketplace-title">🏪 Marketplace</h3>
+                    <div class="marketplace-cards" id="marketplace"></div>
+                </div>
+
+                <div class="game-log" id="game-log">
+                    <div class="log-entry">Game started! Player 1 goes first.</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="winner-modal" class="winner-modal" style="display: none;">
+        <div class="winner-content">
+            <h2 class="winner-title">🎉 Game Over! 🎉</h2>
+            <p id="winner-text"></p>
+            <button class="btn" onclick="restartGame()">Play Again</button>
+        </div>
+    </div>
+
+    <script>
+        // Game state
+        let gameState = {
+            currentPlayer: 1,
+            phase: 'roll', // roll, buy, end
+            diceResult: 0,
+            players: {
+                1: { coins: 3, cards: {}, landmarks: {} },
+                2: { coins: 3, cards: {}, landmarks: {} }
+            }
+        };
+
+        // Card definitions
+        const cards = {
+            'wheat': { name: 'Wheat Field', cost: 1, activation: [1], effect: 'Get 1 coin', color: 'blue', type: 'primary' },
+            'ranch': { name: 'Ranch', cost: 1, activation: [2], effect: 'Get 1 coin', color: 'blue', type: 'primary' },
+            'forest': { name: 'Forest', cost: 3, activation: [5], effect: 'Get 1 coin', color: 'blue', type: 'primary' },
+            'mine': { name: 'Mine', cost: 6, activation: [9], effect: 'Get 5 coins', color: 'blue', type: 'primary' },
+            'bakery': { name: 'Bakery', cost: 1, activation: [2,3], effect: 'Get 1 coin', color: 'green', type: 'secondary' },
+            'cafe': { name: 'Café', cost: 2, activation: [3], effect: 'Get 1 coin from active player', color: 'red', type: 'restaurant' },
+            'store': { name: 'Store', cost: 2, activation: [4], effect: 'Get 3 coins', color: 'green', type: 'secondary' },
+            'cheese': { name: 'Cheese Factory', cost: 5, activation: [7], effect: 'Get 3 coins per ranch', color: 'green', type: 'secondary' },
+            'furniture': { name: 'Furniture Factory', cost: 3, activation: [8], effect: 'Get 3 coins per forest', color: 'green', type: 'secondary' },
+            'market': { name: 'Market', cost: 2, activation: [11,12], effect: 'Get 2 coins per wheat', color: 'green', type: 'secondary' }
+        };
+
+        const landmarks = {
+            'station': { name: 'Train Station', cost: 4, effect: 'Roll 2 dice' },
+            'mall': { name: 'Mall', cost: 10, effect: '+1 coin from cafes/stores' },
+            'park': { name: 'Park', cost: 16, effect: 'Roll again on doubles' },
+            'tower': { name: 'Tower', cost: 22, effect: 'Win the game!' }
+        };
+
+        // Initialize game
+        function initGame() {
+            // Give each player starting cards
+            gameState.players[1].cards = { 'wheat': 1, 'bakery': 1 };
+            gameState.players[2].cards = { 'wheat': 1, 'bakery': 1 };
+            
+            // Initialize landmarks
+            gameState.players[1].landmarks = {};
+            gameState.players[2].landmarks = {};
+            
+            updateDisplay();
+            createMarketplace();
+        }
+
+        function updateDisplay() {
+            // Update player info
+            document.getElementById('p1-coins').textContent = gameState.players[1].coins;
+            document.getElementById('p2-coins').textContent = gameState.players[2].coins;
+            
+            // Update current player indicator
+            document.getElementById('current-turn').textContent = `Player ${gameState.currentPlayer}'s Turn`;
+            
+            // Update player area highlighting
+            document.getElementById('player1').classList.toggle('current-player', gameState.currentPlayer === 1);
+            document.getElementById('player2').classList.toggle('current-player', gameState.currentPlayer === 2);
+            
+            // Update cards
+            updatePlayerCards(1);
+            updatePlayerCards(2);
+            
+            // Update landmarks
+            updatePlayerLandmarks(1);
+            updatePlayerLandmarks(2);
+            
+            // Update buttons
+            document.getElementById('roll-btn').disabled = gameState.phase !== 'roll';
+            document.getElementById('end-turn-btn').disabled = gameState.phase === 'roll';
+        }
+
+        function updatePlayerCards(player) {
+            const container = document.getElementById(`p${player}-cards`);
+            container.innerHTML = '';
+            
+            for (const [cardId, count] of Object.entries(gameState.players[player].cards)) {
+                const card = cards[cardId];
+                for (let i = 0; i < count; i++) {
+                    const cardElement = document.createElement('div');
+                    cardElement.className = `card ${card.color}`;
+                    cardElement.innerHTML = `
+                        <div class="card-name">${card.name}</div>
+                        <div class="card-activation">${card.activation.join(',')}</div>
+                        <div class="card-effect">${card.effect}</div>
+                    `;
+                    container.appendChild(cardElement);
+                }
+            }
+        }
+
+        function updatePlayerLandmarks(player) {
+            const container = document.getElementById(`p${player}-landmarks`);
+            container.innerHTML = '';
+            
+            for (const [landmarkId, landmark] of Object.entries(landmarks)) {
+                const landmarkElement = document.createElement('div');
+                landmarkElement.className = 'landmark';
+                if (gameState.players[player].landmarks[landmarkId]) {
+                    landmarkElement.classList.add('built');
+                }
+                landmarkElement.innerHTML = `
+                    <div class="card-cost">${landmark.cost}</div>
+                    ${landmark.name}
+                `;
+                container.appendChild(landmarkElement);
+            }
+        }
+
+        function createMarketplace() {
+            const marketplace = document.getElementById('marketplace');
+            marketplace.innerHTML = '';
+            
+            // Show available cards to buy
+            const availableCards = ['wheat', 'ranch', 'forest', 'bakery', 'cafe', 'store', 'cheese', 'furniture'];
+            
+            availableCards.forEach(cardId => {
+                const card = cards[cardId];
+                const cardElement = document.createElement('div');
+                cardElement.className = `card ${card.color} marketplace-card`;
+                cardElement.onclick = () => buyCard(cardId);
+                
+                const canAfford = gameState.players[gameState.currentPlayer].coins >= card.cost;
+                if (!canAfford || gameState.phase !== 'buy') {
+                    cardElement.classList.add('disabled');
+                }
+                
+                cardElement.innerHTML = `
+                    <div class="card-cost">${card.cost}</div>
+                    <div class="card-name">${card.name}</div>
+                    <div class="card-activation">${card.activation.join(',')}</div>
+                    <div class="card-effect">${card.effect}</div>
+                `;
+                marketplace.appendChild(cardElement);
+            });
+            
+            // Add landmarks
+            for (const [landmarkId, landmark] of Object.entries(landmarks)) {
+                if (!gameState.players[gameState.currentPlayer].landmarks[landmarkId]) {
+                    const landmarkElement = document.createElement('div');
+                    landmarkElement.className = 'landmark marketplace-card';
+                    landmarkElement.onclick = () => buyLandmark(landmarkId);
+                    
+                    const canAfford = gameState.players[gameState.currentPlayer].coins >= landmark.cost;
+                    if (!canAfford || gameState.phase !== 'buy') {
+                        landmarkElement.classList.add('disabled');
+                    }
+                    
+                    landmarkElement.innerHTML = `
+                        <div class="card-cost">${landmark.cost}</div>
+                        ${landmark.name}
+                    `;
+                    marketplace.appendChild(landmarkElement);
+                }
+            }
+        }
+
+        function rollDice() {
+            const hasStation = gameState.players[gameState.currentPlayer].landmarks['station'];
+            const numDice = hasStation ? 2 : 1;
+            
+            let total = 0;
+            if (numDice === 1) {
+                const roll = Math.floor(Math.random() * 6) + 1;
+                document.getElementById('dice1').textContent = roll;
+                document.getElementById('dice2').style.display = 'none';
+                total = roll;
+            } else {
+                const roll1 = Math.floor(Math.random() * 6) + 1;
+                const roll2 = Math.floor(Math.random() * 6) + 1;
+                document.getElementById('dice1').textContent = roll1;
+                document.getElementById('dice2').textContent = roll2;
+                document.getElementById('dice2').style.display = 'flex';
+                total = roll1 + roll2;
+            }
+            
+            document.getElementById('dice-total').textContent = total;
+            gameState.diceResult = total;
+            
+            // Activate cards
+            activateCards(total);
+            
+            gameState.phase = 'buy';
+            updateDisplay();
+            createMarketplace();
+            
+            logAction(`Player ${gameState.currentPlayer} rolled ${total}`);
+        }
+
+        function activateCards(diceResult) {
+            // Activate cards for all players
+            for (let player = 1; player <= 2; player++) {
+                for (const [cardId, count] of Object.entries(gameState.players[player].cards)) {
+                    const card = cards[cardId];
+                    if (card.activation.includes(diceResult)) {
+                        activateCard(player, cardId, count);
+                    }
+                }
+            }
+        }
+
+        function activateCard(player, cardId, count) {
+            const card = cards[cardId];
+            let coinsEarned = 0;
+            
+            switch (cardId) {
+                case 'wheat':
+                case 'ranch':
+                case 'forest':
+                case 'bakery':
+                    coinsEarned = count;
+                    break;
+                case 'mine':
+                    coinsEarned = 5 * count;
+                    break;
+                case 'store':
+                    coinsEarned = 3 * count;
+                    break;
+                case 'cheese':
+                    const ranches = gameState.players[player].cards['ranch'] || 0;
+                    coinsEarned = 3 * ranches * count;
+                    break;
+                case 'furniture':
+                    const forests = gameState.players[player].cards['forest'] || 0;
+                    coinsEarned = 3 * forests * count;
+                    break;
+                case 'market':
+                    const wheat = gameState.players[player].cards['wheat'] || 0;
+                    coinsEarned = 2 * wheat * count;
+                    break;
+                case 'cafe':
+                    if (player !== gameState.currentPlayer) {
+                        const stolen = Math.min(gameState.players[gameState.currentPlayer].coins, count);
+                        gameState.players[gameState.currentPlayer].coins -= stolen;
+                        gameState.players[player].coins += stolen;
+                        if (stolen > 0) {
+                            logAction(`Player ${player} took ${stolen} coins from Player ${gameState.currentPlayer}`);
+                        }
+                    }
+                    return;
+            }
+            
+            if (coinsEarned > 0) {
+                gameState.players[player].coins += coinsEarned;
+                logAction(`Player ${player} earned ${coinsEarned} coins from ${card.name}`);
+            }
+        }
+
+        function buyCard(cardId) {
+            if (gameState.phase !== 'buy') return;
+            
+            const card = cards[cardId];
+            const player = gameState.currentPlayer;
+            
+            if (gameState.players[player].coins >= card.cost) {
+                gameState.players[player].coins -= card.cost;
+                gameState.players[player].cards[cardId] = (gameState.players[player].cards[cardId] || 0) + 1;
+                logAction(`Player ${player} bought ${card.name} for ${card.cost} coins`);
+                updateDisplay();
+                createMarketplace();
+            }
+        }
+
+        function buyLandmark(landmarkId) {
+            if (gameState.phase !== 'buy') return;
+            
+            const landmark = landmarks[landmarkId];
+            const player = gameState.currentPlayer;
+            
+            if (gameState.players[player].coins >= landmark.cost) {
+                gameState.players[player].coins -= landmark.cost;
+                gameState.players[player].landmarks[landmarkId] = true;
+                logAction(`Player ${player} built ${landmark.name} for ${landmark.cost} coins`);
+                
+                // Check win condition
+                if (Object.keys(gameState.players[player].landmarks).length === 4) {
+                    showWinner(player);
+                    return;
+                }
+                
+                updateDisplay();
+                createMarketplace();
+            }
+        }
+
+        function endTurn() {
+            gameState.currentPlayer = gameState.currentPlayer === 1 ? 2 : 1;
+            gameState.phase = 'roll';
+            updateDisplay();
+            createMarketplace();
+            logAction(`--- Player ${gameState.currentPlayer}'s turn ---`);
+        }
+
+        function logAction(message) {
+            const log = document.getElementById('game-log');
+            const entry = document.createElement('div');
+            entry.className = 'log-entry';
+            entry.textContent = message;
+            log.appendChild(entry);
+            log.scrollTop = log.scrollHeight;
+        }
+
+        function showWinner(player) {
+            document.getElementById('winner-text').textContent = `Player ${player} wins by completing all landmarks!`;
+            document.getElementById('winner-modal').style.display = 'flex';
+        }
+
+        function restartGame() {
+            gameState = {
+                currentPlayer: 1,
+                phase: 'roll',
+                diceResult: 0,
+                players: {
+                    1: { coins: 3, cards: {}, landmarks: {} },
+                    2: { coins: 3, cards: {}, landmarks: {} }
+                }
+            };
+            
+            document.getElementById('winner-modal').style.display = 'none';
+            document.getElementById('game-log').innerHTML = '<div class="log-entry">Game restarted! Player 1 goes first.</div>';
+            initGame();
+        }
+
+        // Start the game
+        initGame();
+    </script>
+</body>
+</html>
