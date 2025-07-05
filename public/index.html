@@ -1013,7 +1013,8 @@
                         cardType,
                         cardName: card.name,
                         newCoins,
-                        isLandmark
+                        isLandmark,
+                        playerId: currentPlayer.id  // Add player ID to track who bought the card
                     }
                 });
             }
@@ -1028,16 +1029,19 @@
         }
         
         function handleCardPurchase(actionData) {
-            const currentPlayer = getCurrentPlayer();
-            currentPlayer.coins = actionData.newCoins;
+            // Find the player who made the purchase (might not be current player in UI updates)
+            const player = gameState.players.find(p => p.id === actionData.playerId);
+            if (!player) return;
+            
+            player.coins = actionData.newCoins;
             
             if (actionData.isLandmark) {
-                currentPlayer.landmarks[actionData.cardType] = true;
+                player.landmarks[actionData.cardType] = true;
             } else {
-                currentPlayer.buildings[actionData.cardType] = (currentPlayer.buildings[actionData.cardType] || 0) + 1;
+                player.buildings[actionData.cardType] = (player.buildings[actionData.cardType] || 0) + 1;
             }
 
-            addLogEntry(`${currentPlayer.name} bought ${actionData.cardName}`, 'player-action');
+            addLogEntry(`${player.name} bought ${actionData.cardName}`, 'player-action');
             
             // Check for win condition
             if (checkWinCondition(currentPlayer)) {
@@ -1191,8 +1195,11 @@
             const buildingsDiv = document.getElementById('playerBuildings');
             buildingsDiv.innerHTML = '';
             
-            const currentPlayer = getCurrentPlayer();
-            Object.entries(currentPlayer.buildings).forEach(([cardType, count]) => {
+            // Find the logged-in player's buildings
+            const myPlayer = gameState.players.find(p => p.id === gameState.playerId);
+            if (!myPlayer) return;
+            
+            Object.entries(myPlayer.buildings).forEach(([cardType, count]) => {
                 if (count > 0) {
                     const card = cardDefinitions[cardType];
                     if (card) {
@@ -1214,8 +1221,11 @@
             const landmarksDiv = document.getElementById('playerLandmarks');
             landmarksDiv.innerHTML = '';
             
-            const currentPlayer = getCurrentPlayer();
-            Object.entries(currentPlayer.landmarks).forEach(([landmarkType, built]) => {
+            // Find the logged-in player's landmarks
+            const myPlayer = gameState.players.find(p => p.id === gameState.playerId);
+            if (!myPlayer) return;
+            
+            Object.entries(myPlayer.landmarks).forEach(([landmarkType, built]) => {
                 const landmark = landmarkDefinitions[landmarkType];
                 if (landmark) {
                     const landmarkDiv = document.createElement('div');
