@@ -2,6 +2,7 @@ const express = require('express');
 const http = require('http');
 const socketIo = require('socket.io');
 const cors = require('cors');
+const path = require('path');
 
 const app = express();
 const server = http.createServer(app);
@@ -13,7 +14,8 @@ const io = socketIo(server, {
 });
 
 app.use(cors());
-app.use(express.static('.'));
+app.use(express.static('public'));
+app.use('/src', express.static('src'));
 
 // Store active games
 const activeGames = new Map();
