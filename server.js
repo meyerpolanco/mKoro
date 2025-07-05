@@ -5,7 +5,7 @@ import cors from 'cors';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
 import path from 'path';
-import { cardDefinitions } from './src/game/cards.js';
+import { GameState } from './src/game/core/GameState.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -23,52 +23,34 @@ app.use(cors());
 app.use(express.static('public'));
 app.use('/src', express.static('src'));
 
-// Store active games
-const activeGames = new Map();
-const connectedPlayers = new Map();
+// Store active games and player connections
+const activeGames = new Map(); // gameCode -> GameState
+const playerConnections = new Map(); // socketId -> { gameCode, name }
 
+// Socket.IO event handlers
 io.on('connection', (socket) => {
     console.log('Player connected:', socket.id);
 
-    // Handle game hosting
-    socket.on('host-game', (data) => {
-        const { playerName, gameCode } = data;
+    // Host game
+    socket.on('host-game', ({ playerName, gameCode }) => {
+        console.log(`${playerName} is hosting game ${gameCode}`);
         
-        // Create new game
-        const game = {
-            id: gameCode,
-            host: socket.id,
-            players: [{
-                id: socket.id,
-                name: playerName,
-                coins: 3,
-                buildings: { 'wheat-field': 1, 'bakery': 1 },
-                landmarks: {
-                    'train-station': false,
-                    'shopping-mall': false,
-                    'amusement-park': false,
-                    'radio-tower': false
-                }
-            }],
-            started: false,
-            currentPlayerIndex: 0,
-            turn: 1,
-            phase: 'roll',
-            lastRoll: null
-        };
+        const game = new GameState(gameCode);
+        const player = game.addPlayer(socket.id, playerName);
         
         activeGames.set(gameCode, game);
-        connectedPlayers.set(socket.id, { gameCode, playerName });
+        playerConnections.set(socket.id, { gameCode, name: playerName });
         
         socket.join(gameCode);
-        socket.emit('game-hosted', { gameCode, game });
-        
-        console.log(`Game hosted: ${gameCode} by ${playerName}`);
+        socket.emit('game-hosted', { 
+            gameCode, 
+            game: game.getClientState() 
+        });
     });
 
-    // Handle joining games
-    socket.on('join-game', (data) => {
-        const { playerName, gameCode } = data;
+    // Join game
+    socket.on('join-game', ({ playerName, gameCode }) => {
+        console.log(`${playerName} is joining game ${gameCode}`);
         
         const game = activeGames.get(gameCode);
         if (!game) {
@@ -81,239 +63,159 @@ io.on('connection', (socket) => {
             return;
         }
         
-        // Add player to game
-        const newPlayer = {
-            id: socket.id,
-            name: playerName,
-            coins: 3,
-            buildings: { 'wheat-field': 1, 'bakery': 1 },
-            landmarks: {
-                'train-station': false,
-                'shopping-mall': false,
-                'amusement-park': false,
-                'radio-tower': false
-            }
-        };
-        
-        game.players.push(newPlayer);
-        connectedPlayers.set(socket.id, { gameCode, playerName });
-        
-        socket.join(gameCode);
-        socket.emit('game-joined', { game });
-        
-        // Notify all players in the game
-        io.to(gameCode).emit('player-joined', { 
-            player: newPlayer, 
-            players: game.players 
-        });
-        
-        console.log(`${playerName} joined game ${gameCode}`);
-    });
-
-    // Handle starting games
-    socket.on('start-game', (data) => {
-        const { gameCode } = data;
-        const game = activeGames.get(gameCode);
-        
-        if (game && game.host === socket.id) {
-            game.started = true;
-            io.to(gameCode).emit('game-started', { game });
-            console.log(`Game ${gameCode} started`);
+        try {
+            const player = game.addPlayer(socket.id, playerName);
+            playerConnections.set(socket.id, { gameCode, name: playerName });
+            
+            socket.join(gameCode);
+            socket.emit('game-joined', { game: game.getClientState() });
+            
+            // Notify all players
+            io.to(gameCode).emit('player-joined', { 
+                player,
+                game: game.getClientState()
+            });
+        } catch (error) {
+            socket.emit('join-error', { message: error.message });
         }
     });
 
-    // Handle game actions
-    socket.on('game-action', (data) => {
-        const { gameCode, action, actionData } = data;
+    // Start game
+    socket.on('start-game', ({ gameCode }) => {
         const game = activeGames.get(gameCode);
+        if (!game) return;
         
-        if (game) {
-            console.log(`Game action: ${action} in game ${gameCode}`);
-            
-            // Update game state based on action
-            if (action === 'roll-dice') {
-                // Only process if it's the current player's action
-                const currentPlayer = game.players[game.currentPlayerIndex];
-                if (socket.id !== currentPlayer.id) {
-                    console.log('Ignoring dice roll from non-current player');
-                    return;
-                }
+        const playerConnection = playerConnections.get(socket.id);
+        if (!playerConnection || playerConnection.gameCode !== gameCode) return;
+        
+        if (game.start()) {
+            io.to(gameCode).emit('game-started', { 
+                game: game.getClientState() 
+            });
+        }
+    });
 
-                console.log(`Processing dice roll from current player ${currentPlayer.name}`);
-                game.lastRoll = actionData.rollResult;
-                game.phase = 'buy';
-                
-                const roll = actionData.rollResult.total;
-                console.log('Processing income for roll:', roll);
-                
-                // Track all coin updates to apply them atomically
-                const coinUpdates = new Map(); // playerId -> coinDelta
-                game.players.forEach(p => coinUpdates.set(p.id, 0));
-                
-                // Process all players' income
-                game.players.forEach(player => {
-                    // Process each building
-                    Object.entries(player.buildings).forEach(([cardType, count]) => {
-                        if (count > 0) {
-                            const card = cardDefinitions[cardType];
-                            if (!card || !card.activation.includes(roll)) return;
-                            
-                            // Blue cards activate for everyone
-                            if (card.color === 'blue') {
-                                const income = card.income * count;
-                                const currentDelta = coinUpdates.get(player.id) || 0;
-                                coinUpdates.set(player.id, currentDelta + income);
-                                console.log(`${player.name} will earn ${income} coins from ${card.name}`);
-                            }
-                            // Green cards only activate for current player
-                            else if (card.color === 'green' && player.id === currentPlayer.id) {
-                                let income = card.income * count;
-                                
-                                // Special handling for factories
-                                if (cardType === 'cheese-factory') {
-                                    income = (player.buildings['ranch'] || 0) * 3;
-                                } else if (cardType === 'furniture-factory') {
-                                    income = (player.buildings['forest'] || 0) * 3;
-                                }
-                                
-                                const currentDelta = coinUpdates.get(player.id) || 0;
-                                coinUpdates.set(player.id, currentDelta + income);
-                                console.log(`${player.name} will earn ${income} coins from ${card.name}`);
-                            }
-                            // Red cards take from current player
-                            else if (card.color === 'red' && player.id !== currentPlayer.id) {
-                                const income = card.income * count;
-                                const maxTake = Math.min(income, currentPlayer.coins + (coinUpdates.get(currentPlayer.id) || 0));
-                                
-                                if (maxTake > 0) {
-                                    const currentPlayerDelta = coinUpdates.get(currentPlayer.id) || 0;
-                                    const otherPlayerDelta = coinUpdates.get(player.id) || 0;
-                                    
-                                    coinUpdates.set(currentPlayer.id, currentPlayerDelta - maxTake);
-                                    coinUpdates.set(player.id, otherPlayerDelta + maxTake);
-                                    
-                                    console.log(`${player.name} will take ${maxTake} coins from ${currentPlayer.name} (${card.name})`);
-                                }
-                            }
+    // Game actions
+    socket.on('game-action', ({ gameCode, action, actionData }) => {
+        const game = activeGames.get(gameCode);
+        if (!game) return;
+        
+        try {
+            switch (action) {
+                case 'roll-dice': {
+                    if (!game.canPerformAction(socket.id, 'roll')) {
+                        throw new Error('Cannot roll dice now');
+                    }
+                    
+                    const result = game.processRoll(actionData.rollResult);
+                    
+                    // Broadcast roll result and income changes
+                    io.to(gameCode).emit('game-action', {
+                        action: 'roll-dice',
+                        actionData: {
+                            ...actionData,
+                            incomeResults: result
                         }
                     });
-                });
-                
-                // Apply all coin updates atomically
-                console.log('Applying coin updates:', Object.fromEntries(coinUpdates));
-                game.players.forEach(player => {
-                    const delta = coinUpdates.get(player.id) || 0;
-                    if (delta !== 0) {
-                        player.coins += delta;
-                        console.log(`${player.name}'s coins updated from ${player.coins - delta} to ${player.coins}`);
-                    }
-                });
-                
-                // Send both the roll action and updated game state
-                io.to(gameCode).emit('game-action', {
-                    action: 'roll-dice',
-                    actionData: actionData
-                });
-                io.to(gameCode).emit('game-state-update', { game });
-            } else if (action === 'buy-card') {
-                // Update player state
-                const player = game.players.find(p => p.id === socket.id);
-                if (player) {
-                    player.coins = actionData.newCoins;
-                    if (actionData.isLandmark) {
-                        player.landmarks[actionData.cardType] = true;
-                        console.log(`${player.name} bought landmark: ${actionData.cardType}`);
-                    } else {
-                        player.buildings[actionData.cardType] = (player.buildings[actionData.cardType] || 0) + 1;
-                        console.log(`${player.name} bought building: ${actionData.cardType}`);
-                    }
+                    
+                    // Send updated game state
+                    io.to(gameCode).emit('game-state-update', {
+                        game: game.getClientState()
+                    });
+                    break;
                 }
-            }             else if (action === 'update-coins') {
-                console.log('Processing coin update:', actionData);
-                // Only process updates from the current player to avoid duplicates
-                if (socket.id === game.players[game.currentPlayerIndex].id) {
-                    console.log('Update is from current player, processing...');
-                    if (actionData.updates) {
-                        // Handle multiple player updates
-                        actionData.updates.forEach(update => {
-                            const player = game.players.find(p => p.id === update.playerId);
-                            if (player) {
-                                console.log(`Updating ${player.name}'s coins from ${player.coins} to ${update.coins}`);
-                                player.coins = update.coins;
-                            }
+                
+                case 'buy-card': {
+                    if (!game.canPerformAction(socket.id, 'buy')) {
+                        throw new Error('Cannot buy cards now');
+                    }
+                    
+                    const result = game.processPurchase(socket.id, actionData.cardType);
+                    
+                    // Broadcast purchase result
+                    io.to(gameCode).emit('game-action', {
+                        action: 'buy-card',
+                        actionData: result
+                    });
+                    
+                    // Check win condition
+                    if (game.checkWinCondition(socket.id)) {
+                        io.to(gameCode).emit('game-won', {
+                            winner: socket.id,
+                            game: game.getClientState()
                         });
-                    } else {
-                        // Handle single player update
-                        const player = game.players.find(p => p.id === actionData.playerId);
-                        if (player) {
-                            console.log(`Updating ${player.name}'s coins from ${player.coins} to ${actionData.coins}`);
-                            player.coins = actionData.coins;
-                        }
+                        return;
                     }
-                    // Broadcast the update to all players
-                    io.to(gameCode).emit('game-state-update', { game });
-                } else {
-                    console.log('Ignoring coin update from non-current player:', socket.id);
+                    
+                    // Send updated game state
+                    io.to(gameCode).emit('game-state-update', {
+                        game: game.getClientState()
+                    });
+                    break;
                 }
-            } else if (action === 'end-turn') {
-                console.log(`End turn action received. Current player index: ${game.currentPlayerIndex}`);
-                console.log(`Players in game: ${game.players.map(p => p.name).join(', ')}`);
                 
-                game.currentPlayerIndex = (game.currentPlayerIndex + 1) % game.players.length;
-                if (game.currentPlayerIndex === 0) {
-                    game.turn++;
+                case 'end-turn': {
+                    if (!game.canPerformAction(socket.id, 'buy')) {
+                        throw new Error('Cannot end turn now');
+                    }
+                    
+                    const result = game.endTurn();
+                    
+                    // Broadcast turn end result
+                    io.to(gameCode).emit('game-action', {
+                        action: 'end-turn',
+                        actionData: result
+                    });
+                    
+                    // Send updated game state
+                    io.to(gameCode).emit('game-state-update', {
+                        game: game.getClientState()
+                    });
+                    break;
                 }
-                game.phase = 'roll';
-                
-                console.log(`Turn ended, new player index: ${game.currentPlayerIndex}`);
-                console.log(`Next player: ${game.players[game.currentPlayerIndex]?.name}`);
-                console.log(`New phase: ${game.phase}`);
             }
-            
-            // Broadcast action to all players in the game (including sender)
-            io.to(gameCode).emit('game-action', { action, actionData });
-            
-            // Broadcast updated game state
-            io.to(gameCode).emit('game-state-update', { game });
-        } else {
-            console.log(`Game not found: ${gameCode}`);
+        } catch (error) {
+            // Send error only to the player who caused it
+            socket.emit('game-error', {
+                action,
+                message: error.message
+            });
         }
     });
 
-    // Handle disconnection
+    // Handle disconnections
     socket.on('disconnect', () => {
-        console.log('Player disconnected:', socket.id);
-        
-        const playerInfo = connectedPlayers.get(socket.id);
-        if (playerInfo) {
-            const game = activeGames.get(playerInfo.gameCode);
+        const playerConnection = playerConnections.get(socket.id);
+        if (playerConnection) {
+            const { gameCode } = playerConnection;
+            const game = activeGames.get(gameCode);
+            
             if (game) {
-                // Remove player from game
-                game.players = game.players.filter(p => p.id !== socket.id);
+                game.removePlayer(socket.id);
                 
                 if (game.players.length === 0) {
-                    // No players left, remove game
-                    activeGames.delete(playerInfo.gameCode);
-                    console.log(`Game ${playerInfo.gameCode} removed (no players)`);
+                    // Remove empty game
+                    activeGames.delete(gameCode);
+                    console.log(`Game ${gameCode} removed (no players)`);
                 } else {
                     // Notify remaining players
-                    io.to(playerInfo.gameCode).emit('player-left', { 
-                        playerId: socket.id, 
-                        players: game.players 
+                    io.to(gameCode).emit('player-left', {
+                        playerId: socket.id,
+                        game: game.getClientState()
                     });
                 }
             }
             
-            connectedPlayers.delete(socket.id);
+            playerConnections.delete(socket.id);
         }
+        
+        console.log('Player disconnected:', socket.id);
     });
 });
 
+// Start server
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, '0.0.0.0', () => {
+server.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
     console.log(`Open http://localhost:${PORT} to play`);
-    if (process.env.PORT) {
-        console.log(`Deployed to cloud service on port ${PORT}`);
-    }
 }); 

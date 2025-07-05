@@ -1,5 +1,9 @@
-// Card definitions for Machi Koro
-export const cardDefinitions = {
+/**
+ * Card definitions for Machi Koro
+ * These are used by both server and client
+ */
+
+export const CARD_DEFINITIONS = {
     'wheat-field': { 
         name: 'Wheat Field', 
         cost: 1, 
@@ -82,7 +86,7 @@ export const cardDefinitions = {
     },
 };
 
-export const landmarkDefinitions = {
+export const LANDMARK_DEFINITIONS = {
     'train-station': { 
         name: 'Train Station', 
         cost: 4, 
