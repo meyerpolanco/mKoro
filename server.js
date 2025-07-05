@@ -132,33 +132,41 @@ io.on('connection', (socket) => {
             
             // Update game state based on action
             if (action === 'roll-dice') {
+                // Only process if it's the current player's action
+                const currentPlayer = game.players[game.currentPlayerIndex];
+                if (socket.id !== currentPlayer.id) {
+                    console.log('Ignoring dice roll from non-current player');
+                    return;
+                }
+
+                console.log(`Processing dice roll from current player ${currentPlayer.name}`);
                 game.lastRoll = actionData.rollResult;
                 game.phase = 'buy';
-                console.log(`Dice rolled: ${actionData.rollResult.total}`);
-
-                // Process income on server side
+                
                 const roll = actionData.rollResult.total;
                 console.log('Processing income for roll:', roll);
                 
+                // Track all coin updates to apply them atomically
+                const coinUpdates = new Map(); // playerId -> coinDelta
+                game.players.forEach(p => coinUpdates.set(p.id, 0));
+                
                 // Process all players' income
                 game.players.forEach(player => {
-                    const isCurrentPlayer = player.id === socket.id;
-                    
                     // Process each building
                     Object.entries(player.buildings).forEach(([cardType, count]) => {
                         if (count > 0) {
-                            // Get card definition
                             const card = cardDefinitions[cardType];
                             if (!card || !card.activation.includes(roll)) return;
                             
                             // Blue cards activate for everyone
                             if (card.color === 'blue') {
                                 const income = card.income * count;
-                                player.coins += income;
-                                console.log(`${player.name} earned ${income} coins from ${card.name}`);
+                                const currentDelta = coinUpdates.get(player.id) || 0;
+                                coinUpdates.set(player.id, currentDelta + income);
+                                console.log(`${player.name} will earn ${income} coins from ${card.name}`);
                             }
                             // Green cards only activate for current player
-                            else if (card.color === 'green' && isCurrentPlayer) {
+                            else if (card.color === 'green' && player.id === currentPlayer.id) {
                                 let income = card.income * count;
                                 
                                 // Special handling for factories
@@ -168,24 +176,45 @@ io.on('connection', (socket) => {
                                     income = (player.buildings['forest'] || 0) * 3;
                                 }
                                 
-                                player.coins += income;
-                                console.log(`${player.name} earned ${income} coins from ${card.name}`);
+                                const currentDelta = coinUpdates.get(player.id) || 0;
+                                coinUpdates.set(player.id, currentDelta + income);
+                                console.log(`${player.name} will earn ${income} coins from ${card.name}`);
                             }
                             // Red cards take from current player
-                            else if (card.color === 'red' && !isCurrentPlayer) {
+                            else if (card.color === 'red' && player.id !== currentPlayer.id) {
                                 const income = card.income * count;
-                                const currentPlayer = game.players[game.currentPlayerIndex];
-                                const taken = Math.min(income, currentPlayer.coins);
+                                const maxTake = Math.min(income, currentPlayer.coins + (coinUpdates.get(currentPlayer.id) || 0));
                                 
-                                if (taken > 0) {
-                                    currentPlayer.coins -= taken;
-                                    player.coins += taken;
-                                    console.log(`${player.name} took ${taken} coins from ${currentPlayer.name} (${card.name})`);
+                                if (maxTake > 0) {
+                                    const currentPlayerDelta = coinUpdates.get(currentPlayer.id) || 0;
+                                    const otherPlayerDelta = coinUpdates.get(player.id) || 0;
+                                    
+                                    coinUpdates.set(currentPlayer.id, currentPlayerDelta - maxTake);
+                                    coinUpdates.set(player.id, otherPlayerDelta + maxTake);
+                                    
+                                    console.log(`${player.name} will take ${maxTake} coins from ${currentPlayer.name} (${card.name})`);
                                 }
                             }
                         }
                     });
                 });
+                
+                // Apply all coin updates atomically
+                console.log('Applying coin updates:', Object.fromEntries(coinUpdates));
+                game.players.forEach(player => {
+                    const delta = coinUpdates.get(player.id) || 0;
+                    if (delta !== 0) {
+                        player.coins += delta;
+                        console.log(`${player.name}'s coins updated from ${player.coins - delta} to ${player.coins}`);
+                    }
+                });
+                
+                // Send both the roll action and updated game state
+                io.to(gameCode).emit('game-action', {
+                    action: 'roll-dice',
+                    actionData: actionData
+                });
+                io.to(gameCode).emit('game-state-update', { game });
             } else if (action === 'buy-card') {
                 // Update player state
                 const player = game.players.find(p => p.id === socket.id);
