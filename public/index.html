@@ -410,10 +410,10 @@
             'ranch': { name: 'Ranch', cost: 1, color: 'blue', activation: [2], income: 1, effect: 'Get 1 coin from bank on anyone\'s turn' },
             'forest': { name: 'Forest', cost: 3, color: 'blue', activation: [5], income: 1, effect: 'Get 1 coin from bank on anyone\'s turn' },
             'mine': { name: 'Mine', cost: 6, color: 'blue', activation: [9], income: 5, effect: 'Get 5 coins from bank on anyone\'s turn' },
-            'bakery': { name: 'Bakery', cost: 1, color: 'green', activation: [2, 3], income: 1, effect: 'Get 1 coin from bank on your turn' },
-            'convenience-store': { name: 'Convenience Store', cost: 2, color: 'green', activation: [4], income: 3, effect: 'Get 3 coins from bank on your turn' },
-            'cheese-factory': { name: 'Cheese Factory', cost: 5, color: 'green', activation: [7], income: 3, effect: 'Get 3 coins per Ranch from bank on your turn' },
-            'furniture-factory': { name: 'Furniture Factory', cost: 3, color: 'green', activation: [8], income: 3, effect: 'Get 3 coins per Forest from bank on your turn' },
+            'bakery': { name: 'Bakery', cost: 1, color: 'green', activation: [2, 3], income: 1, effect: 'Get 1 coin from bank on your turn only' },
+            'convenience-store': { name: 'Convenience Store', cost: 2, color: 'green', activation: [4], income: 3, effect: 'Get 3 coins from bank on your turn only' },
+            'cheese-factory': { name: 'Cheese Factory', cost: 5, color: 'green', activation: [7], income: 3, effect: 'Get 3 coins per Ranch from bank on your turn only' },
+            'furniture-factory': { name: 'Furniture Factory', cost: 3, color: 'green', activation: [8], income: 3, effect: 'Get 3 coins per Forest from bank on your turn only' },
             'cafe': { name: 'Cafe', cost: 2, color: 'red', activation: [3], income: 1, effect: 'Get 1 coin from active player on their turn' },
             'family-restaurant': { name: 'Family Restaurant', cost: 3, color: 'red', activation: [9, 10], income: 2, effect: 'Get 2 coins from active player on their turn' },
         };
@@ -889,43 +889,45 @@
             // Calculate all income changes first before applying them
             const coinUpdates = new Map(); // playerId -> coinChange
             
-            // Process all players for blue cards (everyone gets income)
+            // Process all players
             gameState.players.forEach(player => {
+                const isCurrentPlayer = player.id === getCurrentPlayer().id;
+                
+                // Process each building
                 Object.entries(player.buildings).forEach(([cardType, count]) => {
                     if (count > 0) {
                         const card = cardDefinitions[cardType];
-                        console.log('Checking blue card:', cardType, card);
-                        if (card && card.color === 'blue' && card.activation.includes(roll)) {
-                            let income = card.income * count;
-                            const currentCoins = coinUpdates.get(player.id) || 0;
-                            coinUpdates.set(player.id, currentCoins + income);
-                            addLogEntry(`${player.name} earned ${income} coins from ${card.name}`, 'game-event');
+                        if (!card) return;
+                        
+                        // Only process if card activates on this roll
+                        if (card.activation.includes(roll)) {
+                            // Blue cards activate for everyone
+                            if (card.color === 'blue') {
+                                console.log('Processing blue card:', cardType, 'for player:', player.name);
+                                let income = card.income * count;
+                                const currentCoins = coinUpdates.get(player.id) || 0;
+                                coinUpdates.set(player.id, currentCoins + income);
+                                addLogEntry(`${player.name} earned ${income} coins from ${card.name}`, 'game-event');
+                            }
+                            // Green cards only activate for current player
+                            else if (card.color === 'green' && isCurrentPlayer) {
+                                console.log('Processing green card:', cardType, 'for current player:', player.name);
+                                let income = card.income * count;
+                                
+                                // Special handling for factories
+                                if (cardType === 'cheese-factory') {
+                                    income = (player.buildings['ranch'] || 0) * 3;
+                                } else if (cardType === 'furniture-factory') {
+                                    income = (player.buildings['forest'] || 0) * 3;
+                                }
+                                
+                                const currentCoins = coinUpdates.get(player.id) || 0;
+                                coinUpdates.set(player.id, currentCoins + income);
+                                addLogEntry(`${player.name} earned ${income} coins from ${card.name}`, 'game-event');
+                            }
                         }
                     }
                 });
-            });
-
-            // Process current player for green cards
-            const currentPlayer = getCurrentPlayer();
-            Object.entries(currentPlayer.buildings).forEach(([cardType, count]) => {
-                if (count > 0) {
-                    const card = cardDefinitions[cardType];
-                    console.log('Checking green card:', cardType, card);
-                    if (card && card.color === 'green' && card.activation.includes(roll)) {
-                        let income = card.income * count;
-                        
-                        // Special handling for factories
-                        if (cardType === 'cheese-factory') {
-                            income = (currentPlayer.buildings['ranch'] || 0) * 3;
-                        } else if (cardType === 'furniture-factory') {
-                            income = (currentPlayer.buildings['forest'] || 0) * 3;
-                        }
-                        
-                        const currentCoins = coinUpdates.get(currentPlayer.id) || 0;
-                        coinUpdates.set(currentPlayer.id, currentCoins + income);
-                        addLogEntry(`${currentPlayer.name} earned ${income} coins from ${card.name}`, 'game-event');
-                    }
-                }
             });
 
             // Process red cards (restaurants) - take from current player
