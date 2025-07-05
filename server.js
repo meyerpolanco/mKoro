@@ -141,12 +141,18 @@ io.on('connection', (socket) => {
                     }
                 }
             } else if (action === 'end-turn') {
+                console.log(`End turn action received. Current player index: ${game.currentPlayerIndex}`);
+                console.log(`Players in game: ${game.players.map(p => p.name).join(', ')}`);
+                
                 game.currentPlayerIndex = (game.currentPlayerIndex + 1) % game.players.length;
                 if (game.currentPlayerIndex === 0) {
                     game.turn++;
                 }
                 game.phase = 'roll';
-                console.log(`Turn ended, next player: ${game.players[game.currentPlayerIndex]?.name}`);
+                
+                console.log(`Turn ended, new player index: ${game.currentPlayerIndex}`);
+                console.log(`Next player: ${game.players[game.currentPlayerIndex]?.name}`);
+                console.log(`New phase: ${game.phase}`);
             }
             
             // Broadcast action to all players in the game (including sender)

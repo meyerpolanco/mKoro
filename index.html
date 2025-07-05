@@ -566,11 +566,40 @@
                 handleGameAction(data.action, data.actionData);
             });
             
-            socket.on('game-state-update', (data) => {
-                console.log('Game state updated:', data);
-                gameState = { ...gameState, ...data.game };
-                updateGameDisplay();
-            });
+                    socket.on('game-state-update', (data) => {
+            console.log('Game state updated from server:', data);
+            console.log('Previous game state:', gameState);
+            
+            // Update game state from server
+            gameState = { ...gameState, ...data.game };
+            
+            console.log('New game state:', gameState);
+            
+            // Reset UI elements based on server state
+            const rollDiceBtn = document.getElementById('rollDiceBtn');
+            const turnActions = document.getElementById('turnActions');
+            const diceResult = document.getElementById('diceResult');
+            const diceOptions = document.getElementById('diceOptions');
+            
+            if (rollDiceBtn) {
+                rollDiceBtn.disabled = !isCurrentPlayer() || gameState.phase !== 'roll';
+                rollDiceBtn.style.display = 'block';
+            }
+            
+            if (turnActions) {
+                turnActions.style.display = (gameState.phase === 'buy' && isCurrentPlayer()) ? 'block' : 'none';
+            }
+            
+            if (diceResult) {
+                diceResult.style.display = 'none';
+            }
+            
+            if (diceOptions) {
+                diceOptions.style.display = 'none';
+            }
+            
+            updateGameDisplay();
+        });
         }
         
         function showDebugInfo() {
@@ -1001,8 +1030,8 @@
                 });
             }
 
-            // Update local state immediately
-            handleTurnEnd();
+            // Don't update local state - wait for server response
+            // The server will send game-state-update which will handle the UI
         }
 
         function endTurn() {
