@@ -881,16 +881,27 @@
 
         function processIncome() {
             const roll = gameState.lastRoll.total;
+            console.log('Processing income for roll:', roll);
             
             // Process all players for blue cards (everyone gets income)
             gameState.players.forEach(player => {
                 Object.entries(player.buildings).forEach(([cardType, count]) => {
                     if (count > 0) {
                         const card = cardDefinitions[cardType];
+                        console.log('Checking blue card:', cardType, card);
                         if (card && card.color === 'blue' && card.activation.includes(roll)) {
                             let income = card.income * count;
                             player.coins += income;
                             addLogEntry(`${player.name} earned ${income} coins from ${card.name}`, 'game-event');
+                            
+                            // Send game state update to server
+                            if (socket) {
+                                socket.emit('game-action', {
+                                    gameCode: gameState.gameCode,
+                                    action: 'update-coins',
+                                    actionData: { playerId: player.id, coins: player.coins }
+                                });
+                            }
                         }
                     }
                 });
@@ -901,6 +912,7 @@
             Object.entries(currentPlayer.buildings).forEach(([cardType, count]) => {
                 if (count > 0) {
                     const card = cardDefinitions[cardType];
+                    console.log('Checking green card:', cardType, card);
                     if (card && card.color === 'green' && card.activation.includes(roll)) {
                         let income = card.income * count;
                         
@@ -913,6 +925,15 @@
                         
                         currentPlayer.coins += income;
                         addLogEntry(`${currentPlayer.name} earned ${income} coins from ${card.name}`, 'game-event');
+                        
+                        // Send game state update to server
+                        if (socket) {
+                            socket.emit('game-action', {
+                                gameCode: gameState.gameCode,
+                                action: 'update-coins',
+                                actionData: { playerId: currentPlayer.id, coins: currentPlayer.coins }
+                            });
+                        }
                     }
                 }
             });
@@ -924,12 +945,27 @@
                 Object.entries(player.buildings).forEach(([cardType, count]) => {
                     if (count > 0) {
                         const card = cardDefinitions[cardType];
+                        console.log('Checking red card:', cardType, card);
                         if (card && card.color === 'red' && card.activation.includes(roll)) {
                             let income = card.income * count;
                             const taken = Math.min(income, currentPlayer.coins);
                             currentPlayer.coins -= taken;
                             player.coins += taken;
                             addLogEntry(`${player.name} took ${taken} coins from ${currentPlayer.name} (${card.name})`, 'game-event');
+                            
+                            // Send game state update to server
+                            if (socket) {
+                                socket.emit('game-action', {
+                                    gameCode: gameState.gameCode,
+                                    action: 'update-coins',
+                                    actionData: { 
+                                        updates: [
+                                            { playerId: currentPlayer.id, coins: currentPlayer.coins },
+                                            { playerId: player.id, coins: player.coins }
+                                        ]
+                                    }
+                                });
+                            }
                         }
                     }
                 });
@@ -1165,6 +1201,7 @@
                         cardDiv.innerHTML = `
                             <div class="card-name">${card.name}</div>
                             <div class="card-cost">Count: ${count}</div>
+                            <div style="color: #666; margin: 5px 0;">🎲 Activates on: ${card.activation.join(', ')}</div>
                             <div class="card-effect">${card.effect}</div>
                         `;
                         buildingsDiv.appendChild(cardDiv);
@@ -1220,6 +1257,7 @@
                 cardDiv.innerHTML = `
                     <div class="card-name">${card.name}</div>
                     <div class="card-cost">💰 ${card.cost}</div>
+                    <div style="color: #666; margin: 5px 0;">🎲 Activates on: ${card.activation.join(', ')}</div>
                     <div class="card-effect">${card.effect}</div>
                 `;
                 

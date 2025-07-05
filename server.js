@@ -147,6 +147,25 @@ io.on('connection', (socket) => {
                         console.log(`${player.name} bought building: ${actionData.cardType}`);
                     }
                 }
+            } else if (action === 'update-coins') {
+                console.log('Processing coin update:', actionData);
+                if (actionData.updates) {
+                    // Handle multiple player updates (for red cards)
+                    actionData.updates.forEach(update => {
+                        const player = game.players.find(p => p.id === update.playerId);
+                        if (player) {
+                            player.coins = update.coins;
+                            console.log(`Updated ${player.name}'s coins to ${player.coins}`);
+                        }
+                    });
+                } else {
+                    // Handle single player update
+                    const player = game.players.find(p => p.id === actionData.playerId);
+                    if (player) {
+                        player.coins = actionData.coins;
+                        console.log(`Updated ${player.name}'s coins to ${player.coins}`);
+                    }
+                }
             } else if (action === 'end-turn') {
                 console.log(`End turn action received. Current player index: ${game.currentPlayerIndex}`);
                 console.log(`Players in game: ${game.players.map(p => p.name).join(', ')}`);
