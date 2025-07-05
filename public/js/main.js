@@ -1,4 +1,4 @@
-import { GameApp } from '../../src/game/ui/GameApp.js';
+import { GameApp } from '/src/game/ui/GameApp.js';
 
 // Initialize game when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {

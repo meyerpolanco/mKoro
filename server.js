@@ -21,7 +21,13 @@ const io = new Server(server, {
 
 app.use(cors());
 app.use(express.static('public'));
-app.use('/src', express.static('src'));
+app.use('/src', express.static(path.join(__dirname, 'src')));
+app.use('/node_modules', express.static(path.join(__dirname, 'node_modules')));
+
+// Serve index.html for all routes to support client-side routing
+app.get('*', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
 
 // Store active games and player connections
 const activeGames = new Map(); // gameCode -> GameState
