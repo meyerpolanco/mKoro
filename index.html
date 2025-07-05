@@ -987,7 +987,18 @@
             }
 
             addLogEntry(`${getCurrentPlayer().name} skipped their turn`, 'player-action');
-            endTurn();
+            
+            // Send skip turn action to server
+            if (socket) {
+                socket.emit('game-action', {
+                    gameCode: gameState.gameCode,
+                    action: 'end-turn',
+                    actionData: { skipped: true }
+                });
+            }
+
+            // Update local state immediately
+            handleTurnEnd();
         }
 
         function endTurn() {
@@ -1022,9 +1033,15 @@
                 gameState.turn++;
             }
             
+            // Reset to roll phase
             gameState.phase = 'roll';
+            
+            // Reset UI elements
             document.getElementById('rollDiceBtn').disabled = false;
+            document.getElementById('rollDiceBtn').style.display = 'block';
             document.getElementById('turnActions').style.display = 'none';
+            document.getElementById('diceResult').style.display = 'none';
+            document.getElementById('diceOptions').style.display = 'none';
             
             updateGameDisplay();
         }
@@ -1045,8 +1062,14 @@
             // Update available cards
             updateAvailableCards();
             
-            // Update turn actions visibility
+            // Update UI elements based on current player and phase
+            const rollDiceBtn = document.getElementById('rollDiceBtn');
             const turnActions = document.getElementById('turnActions');
+            
+            if (rollDiceBtn) {
+                rollDiceBtn.disabled = !isCurrentPlayer() || gameState.phase !== 'roll';
+            }
+            
             if (turnActions) {
                 turnActions.style.display = (gameState.phase === 'buy' && isCurrentPlayer()) ? 'block' : 'none';
             }
