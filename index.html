@@ -566,40 +566,52 @@
                 handleGameAction(data.action, data.actionData);
             });
             
-                    socket.on('game-state-update', (data) => {
-            console.log('Game state updated from server:', data);
-            console.log('Previous game state:', gameState);
-            
-            // Update game state from server
-            gameState = { ...gameState, ...data.game };
-            
-            console.log('New game state:', gameState);
-            
-            // Reset UI elements based on server state
-            const rollDiceBtn = document.getElementById('rollDiceBtn');
-            const turnActions = document.getElementById('turnActions');
-            const diceResult = document.getElementById('diceResult');
-            const diceOptions = document.getElementById('diceOptions');
-            
-            if (rollDiceBtn) {
-                rollDiceBtn.disabled = !isCurrentPlayer() || gameState.phase !== 'roll';
-                rollDiceBtn.style.display = 'block';
-            }
-            
-            if (turnActions) {
-                turnActions.style.display = (gameState.phase === 'buy' && isCurrentPlayer()) ? 'block' : 'none';
-            }
-            
-            if (diceResult) {
-                diceResult.style.display = 'none';
-            }
-            
-            if (diceOptions) {
-                diceOptions.style.display = 'none';
-            }
-            
-            updateGameDisplay();
-        });
+            socket.on('game-state-update', (data) => {
+                console.log('Game state updated from server:', data);
+                console.log('Previous game state:', gameState);
+                
+                // Update game state from server
+                gameState = { ...gameState, ...data.game };
+                
+                console.log('New game state:', gameState);
+                
+                // Reset UI elements based on server state
+                const rollDiceBtn = document.getElementById('rollDiceBtn');
+                const turnActions = document.getElementById('turnActions');
+                const diceResult = document.getElementById('diceResult');
+                const diceOptions = document.getElementById('diceOptions');
+                
+                if (rollDiceBtn) {
+                    rollDiceBtn.disabled = !isCurrentPlayer() || gameState.phase !== 'roll';
+                    rollDiceBtn.style.display = 'block';
+                }
+                
+                if (turnActions) {
+                    turnActions.style.display = (gameState.phase === 'buy' && isCurrentPlayer()) ? 'block' : 'none';
+                }
+                
+                // Only hide dice result when moving to a new turn's roll phase
+                if (diceResult && gameState.phase === 'roll' && !gameState.lastRoll) {
+                    diceResult.style.display = 'none';
+                } else if (diceResult && gameState.lastRoll) {
+                    // Show dice result if there is a roll
+                    diceResult.style.display = 'block';
+                    document.getElementById('dice1').textContent = gameState.lastRoll.dice1;
+                    if (gameState.lastRoll.dice2) {
+                        document.getElementById('dice2').style.display = 'inline-block';
+                        document.getElementById('dice2').textContent = gameState.lastRoll.dice2;
+                    } else {
+                        document.getElementById('dice2').style.display = 'none';
+                    }
+                    document.getElementById('diceTotal').textContent = gameState.lastRoll.total;
+                }
+                
+                if (diceOptions) {
+                    diceOptions.style.display = 'none';
+                }
+                
+                updateGameDisplay();
+            });
         }
         
         function showDebugInfo() {
@@ -741,8 +753,6 @@
                 playersList.appendChild(playerDiv);
             });
         }
-
-
 
         function startGame() {
             if (gameState.players.length < 2) {
@@ -1070,6 +1080,7 @@
             
             // Reset to roll phase
             gameState.phase = 'roll';
+            gameState.lastRoll = null; // Clear the last roll when moving to next player
             
             console.log('New current player index:', gameState.currentPlayerIndex);
             console.log('New phase:', gameState.phase);
@@ -1078,7 +1089,7 @@
             document.getElementById('rollDiceBtn').disabled = false;
             document.getElementById('rollDiceBtn').style.display = 'block';
             document.getElementById('turnActions').style.display = 'none';
-            document.getElementById('diceResult').style.display = 'none';
+            document.getElementById('diceResult').style.display = 'none'; // Hide dice result when turn ends
             document.getElementById('diceOptions').style.display = 'none';
             
             updateGameDisplay();
@@ -1242,8 +1253,6 @@
                 }, 3000);
             }
         }
-
-
 
         // Initialize the game when page loads
         window.addEventListener('load', initializeGame);
