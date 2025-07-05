@@ -310,6 +310,8 @@
             <div>
                 <button class="btn" id="hostGameBtn">Host New Game</button>
                 <button class="btn" id="joinGameBtn">Join Game</button>
+                <button class="btn" id="debugBtn" style="background: #ff9800;">Debug Info</button>
+                <button class="btn" id="testBtn" style="background: #9c27b0;">Test Connection</button>
             </div>
 
             <div class="input-group" id="gameCodeGroup" style="display: none;">
@@ -374,6 +376,7 @@
         </div>
     </div>
 
+    <script src="/socket.io/socket.io.js"></script>
     <script>
         // Game state and networking
         let gameState = {
@@ -388,6 +391,10 @@
             playerId: null,
             gameCode: null
         };
+
+        // Socket.io connection for online multiplayer
+        let socket = null;
+        let isConnected = false;
 
         // WebRTC connections for star topology
         let connections = new Map(); // playerId -> RTCPeerConnection
@@ -428,6 +435,8 @@
             document.getElementById('rollDiceBtn').addEventListener('click', rollDice);
             document.getElementById('rollOneDie').addEventListener('click', () => rollDice(1));
             document.getElementById('rollTwoDice').addEventListener('click', () => rollDice(2));
+            document.getElementById('debugBtn').addEventListener('click', showDebugInfo);
+            document.getElementById('testBtn').addEventListener('click', testGameConnection);
             
             // Game code input
             document.getElementById('gameCode').addEventListener('keypress', (e) => {
@@ -436,9 +445,152 @@
                 }
             });
         }
+        
+        function setupSocketListeners() {
+            if (!socket) return;
+            
+            socket.on('connect', () => {
+                console.log('Connected to server');
+                isConnected = true;
+                gameState.playerId = socket.id;
+            });
+            
+            socket.on('disconnect', () => {
+                console.log('Disconnected from server');
+                isConnected = false;
+            });
+            
+            socket.on('game-hosted', (data) => {
+                console.log('Game hosted successfully:', data);
+                gameState.gameCode = data.gameCode;
+                gameState.players = data.game.players;
+                gameState.isHost = true;
+                isHost = true;
+                
+                showStatus(`Game created! Share this code: ${data.gameCode}`, 'success');
+                
+                // Show game code prominently
+                const connectionPanel = document.getElementById('connectionPanel');
+                const codeDisplay = document.createElement('div');
+                codeDisplay.style.cssText = `
+                    background: #e8f5e9;
+                    border: 2px solid #4caf50;
+                    border-radius: 10px;
+                    padding: 20px;
+                    margin: 20px 0;
+                    text-align: center;
+                    font-size: 24px;
+                    font-weight: bold;
+                    color: #2e7d32;
+                `;
+                codeDisplay.innerHTML = `
+                    <div>🎮 Game Code:</div>
+                    <div style="font-size: 36px; margin: 10px 0; letter-spacing: 3px;">${data.gameCode}</div>
+                    <div style="font-size: 14px; color: #666;">Share this code with other players</div>
+                `;
+                connectionPanel.insertBefore(codeDisplay, document.getElementById('playersWaiting'));
+                
+                showLobby();
+            });
+            
+            socket.on('game-joined', (data) => {
+                console.log('Joined game successfully:', data);
+                gameState.gameCode = data.game.id;
+                gameState.players = data.game.players;
+                gameState.isHost = false;
+                isHost = false;
+                
+                showStatus('Connected to game!', 'success');
+                
+                // Show connection info
+                const connectionPanel = document.getElementById('connectionPanel');
+                const connectionInfo = document.createElement('div');
+                connectionInfo.style.cssText = `
+                    background: #e3f2fd;
+                    border: 2px solid #2196f3;
+                    border-radius: 10px;
+                    padding: 15px;
+                    margin: 20px 0;
+                    text-align: center;
+                `;
+                connectionInfo.innerHTML = `
+                    <div><strong>✅ Connected to game</strong></div>
+                    <div>Game Code: ${data.game.id}</div>
+                    <div style="font-size: 12px; color: #666; margin-top: 5px;">
+                        Waiting for host to start the game...
+                    </div>
+                `;
+                connectionPanel.insertBefore(connectionInfo, document.getElementById('playersWaiting'));
+                
+                showLobby();
+            });
+            
+            socket.on('join-error', (data) => {
+                showStatus(data.message, 'error');
+            });
+            
+            socket.on('player-joined', (data) => {
+                console.log('Player joined:', data);
+                gameState.players = data.players;
+                updatePlayersList();
+                addLogEntry(`${data.player.name} joined the game`, 'game-event');
+            });
+            
+            socket.on('player-left', (data) => {
+                console.log('Player left:', data);
+                gameState.players = data.players;
+                updatePlayersList();
+                addLogEntry('A player left the game', 'game-event');
+            });
+            
+            socket.on('game-started', (data) => {
+                console.log('Game started:', data);
+                gameState = { ...gameState, ...data.game };
+                gameState.gameStarted = true;
+                handleGameStarted(data);
+            });
+            
+            socket.on('game-action', (data) => {
+                console.log('Received game action:', data);
+                handleGameAction(data.action, data.actionData);
+            });
+            
+            socket.on('game-state-update', (data) => {
+                console.log('Game state updated:', data);
+                gameState = { ...gameState, ...data.game };
+                updateGameDisplay();
+            });
+        }
+        
+        function showDebugInfo() {
+            console.log('=== DEBUG INFO ===');
+            console.log('Socket connected:', isConnected);
+            console.log('Current gameState:', gameState);
+            console.log('Is host:', isHost);
+            
+            let debugText = '=== DEBUG INFO ===\n';
+            debugText += `Socket connected: ${isConnected}\n`;
+            debugText += `Is host: ${isHost}\n`;
+            debugText += `Game code: ${gameState.gameCode}\n`;
+            debugText += `Players: ${gameState.players.length}\n`;
+            debugText += `Game started: ${gameState.gameStarted}\n`;
+            
+            alert(debugText);
+        }
+        
+        function testGameConnection() {
+            if (!socket) {
+                alert('Not connected to server. Please host or join a game first.');
+                return;
+            }
+            
+            alert(`Connection test:\nSocket connected: ${isConnected}\nGame code: ${gameState.gameCode || 'None'}\nPlayers: ${gameState.players.length}`);
+        }
 
         function generateGameCode() {
-            return Math.random().toString(36).substr(2, 6).toUpperCase();
+            const code = Math.random().toString(36).substr(2, 6).toUpperCase();
+            console.log('Generated game code:', code);
+            return code;
         }
 
         async function hostGame() {
@@ -448,49 +600,18 @@
                 return;
             }
 
-            isHost = true;
-            gameState.isHost = true;
-            gameState.gameCode = generateGameCode();
-            gameState.playerId = 'host';
-            
-            // Initialize host player
-            const hostPlayer = createPlayer(playerName, 'host');
-            gameState.players.push(hostPlayer);
+            // Connect to server if not already connected
+            if (!socket) {
+                socket = io();
+                setupSocketListeners();
+            }
 
-            // Store host game in localStorage for sharing
-            const hostData = {
-                gameCode: gameState.gameCode,
-                hostName: playerName,
-                players: gameState.players,
-                timestamp: Date.now()
-            };
-            localStorage.setItem(`game_${gameState.gameCode}`, JSON.stringify(hostData));
-
-            // Show permanent game code
-            showStatus(`Game created! Share this code: ${gameState.gameCode}`, 'success');
+            const gameCode = generateGameCode();
             
-            // Update the connection panel to show the code prominently
-            const connectionPanel = document.getElementById('connectionPanel');
-            const codeDisplay = document.createElement('div');
-            codeDisplay.style.cssText = `
-                background: #e8f5e9;
-                border: 2px solid #4caf50;
-                border-radius: 10px;
-                padding: 20px;
-                margin: 20px 0;
-                text-align: center;
-                font-size: 24px;
-                font-weight: bold;
-                color: #2e7d32;
-            `;
-            codeDisplay.innerHTML = `
-                <div>🎮 Game Code:</div>
-                <div style="font-size: 36px; margin: 10px 0; letter-spacing: 3px;">${gameState.gameCode}</div>
-                <div style="font-size: 14px; color: #666;">Share this code with other players</div>
-            `;
-            connectionPanel.insertBefore(codeDisplay, document.getElementById('playersWaiting'));
+            showStatus('Creating game...', 'info');
             
-            showLobby();
+            // Host game on server
+            socket.emit('host-game', { playerName, gameCode });
         }
 
         function showJoinForm() {
@@ -508,70 +629,16 @@
                 return;
             }
 
+            // Connect to server if not already connected
+            if (!socket) {
+                socket = io();
+                setupSocketListeners();
+            }
+
             showStatus('Connecting to game...', 'info');
             
-            // Check if game exists in localStorage
-            const gameData = localStorage.getItem(`game_${gameCode}`);
-            if (!gameData) {
-                showStatus('Game not found! Check your code.', 'error');
-                return;
-            }
-
-            try {
-                const hostData = JSON.parse(gameData);
-                
-                // Check if game is too old (30 minutes)
-                if (Date.now() - hostData.timestamp > 30 * 60 * 1000) {
-                    showStatus('Game session expired', 'error');
-                    return;
-                }
-
-                gameState.playerId = Math.random().toString(36).substr(2, 9);
-                gameState.gameCode = gameCode;
-                gameState.isHost = false;
-                
-                // Create new player
-                const newPlayer = createPlayer(playerName, gameState.playerId);
-                
-                // Add to existing players
-                hostData.players.push(newPlayer);
-                gameState.players = hostData.players;
-                
-                // Update stored game data
-                localStorage.setItem(`game_${gameCode}`, JSON.stringify(hostData));
-                
-                // Notify about successful connection
-                showStatus('Connected to game!', 'success');
-                
-                // Show that we're connected to the host's game
-                const connectionPanel = document.getElementById('connectionPanel');
-                const connectionInfo = document.createElement('div');
-                connectionInfo.style.cssText = `
-                    background: #e3f2fd;
-                    border: 2px solid #2196f3;
-                    border-radius: 10px;
-                    padding: 15px;
-                    margin: 20px 0;
-                    text-align: center;
-                `;
-                connectionInfo.innerHTML = `
-                    <div><strong>✅ Connected to ${hostData.hostName}'s game</strong></div>
-                    <div>Game Code: ${gameCode}</div>
-                    <div style="font-size: 12px; color: #666; margin-top: 5px;">
-                        Waiting for host to start the game...
-                    </div>
-                `;
-                connectionPanel.insertBefore(connectionInfo, document.getElementById('playersWaiting'));
-                
-                showLobby();
-                
-                // Check for game updates periodically
-                startGameUpdateLoop();
-                
-            } catch (error) {
-                showStatus('Error connecting to game', 'error');
-                console.error('Join game error:', error);
-            }
+            // Join game on server
+            socket.emit('join-game', { playerName, gameCode });
         }
 
         function createPlayer(name, id) {
@@ -614,38 +681,7 @@
             });
         }
 
-        function startGameUpdateLoop() {
-            // Check for game updates every 2 seconds
-            const updateInterval = setInterval(() => {
-                if (gameState.gameStarted) {
-                    clearInterval(updateInterval);
-                    return;
-                }
-                
-                const gameData = localStorage.getItem(`game_${gameState.gameCode}`);
-                if (gameData) {
-                    try {
-                        const hostData = JSON.parse(gameData);
-                        
-                        // Update player list if changed
-                        if (hostData.players.length !== gameState.players.length) {
-                            gameState.players = hostData.players;
-                            updatePlayersList();
-                        }
-                        
-                        // Check if game started
-                        if (hostData.gameStarted && !gameState.gameStarted) {
-                            gameState = { ...gameState, ...hostData };
-                            startGame();
-                            clearInterval(updateInterval);
-                        }
-                        
-                    } catch (error) {
-                        console.error('Error checking game updates:', error);
-                    }
-                }
-            }, 2000);
-        }
+
 
         function startGame() {
             if (gameState.players.length < 2) {
@@ -653,21 +689,17 @@
                 return;
             }
 
+            if (isHost && socket) {
+                // Host starts the game on server
+                socket.emit('start-game', { gameCode: gameState.gameCode });
+            }
+        }
+        
+        function handleGameStarted(data) {
             gameState.gameStarted = true;
             gameState.currentPlayerIndex = 0;
-            
-            // If host, update the stored game data
-            if (isHost) {
-                const gameData = localStorage.getItem(`game_${gameState.gameCode}`);
-                if (gameData) {
-                    const hostData = JSON.parse(gameData);
-                    hostData.gameStarted = true;
-                    hostData.currentPlayerIndex = 0;
-                    hostData.turn = 1;
-                    hostData.phase = 'roll';
-                    localStorage.setItem(`game_${gameState.gameCode}`, JSON.stringify(hostData));
-                }
-            }
+            gameState.turn = 1;
+            gameState.phase = 'roll';
             
             // Hide connection panel and show game board
             document.getElementById('connectionPanel').style.display = 'none';
@@ -711,25 +743,41 @@
             const dice2 = diceCount === 2 ? Math.floor(Math.random() * 6) + 1 : 0;
             const total = dice1 + dice2;
 
-            gameState.lastRoll = {
+            const rollResult = {
                 dice1: dice1,
                 dice2: dice2,
                 total: total,
                 isDouble: diceCount === 2 && dice1 === dice2
             };
 
+            // Send dice roll to server
+            if (socket) {
+                socket.emit('game-action', {
+                    gameCode: gameState.gameCode,
+                    action: 'roll-dice',
+                    actionData: { rollResult }
+                });
+            }
+
+            // Update local display immediately
+            handleDiceRoll(rollResult);
+        }
+        
+        function handleDiceRoll(rollResult) {
+            gameState.lastRoll = rollResult;
+
             // Update dice display
-            document.getElementById('dice1').textContent = dice1;
-            if (diceCount === 2) {
+            document.getElementById('dice1').textContent = rollResult.dice1;
+            if (rollResult.dice2) {
                 document.getElementById('dice2').style.display = 'inline-block';
-                document.getElementById('dice2').textContent = dice2;
+                document.getElementById('dice2').textContent = rollResult.dice2;
             } else {
                 document.getElementById('dice2').style.display = 'none';
             }
-            document.getElementById('diceTotal').textContent = total;
+            document.getElementById('diceTotal').textContent = rollResult.total;
             document.getElementById('diceResult').style.display = 'block';
 
-            addLogEntry(`${getCurrentPlayer().name} rolled ${total}`, 'player-action');
+            addLogEntry(`${getCurrentPlayer().name} rolled ${rollResult.total}`, 'player-action');
 
             // Process income phase
             processIncome();
@@ -739,6 +787,20 @@
             document.getElementById('rollDiceBtn').disabled = true;
             
             updateGameDisplay();
+        }
+        
+        function handleGameAction(action, actionData) {
+            switch (action) {
+                case 'roll-dice':
+                    handleDiceRoll(actionData.rollResult);
+                    break;
+                case 'buy-card':
+                    handleCardPurchase(actionData);
+                    break;
+                case 'end-turn':
+                    handleTurnEnd();
+                    break;
+            }
         }
 
         function processIncome() {
@@ -827,16 +889,43 @@
                 return;
             }
 
-            // Buy the card
-            currentPlayer.coins -= card.cost;
-            
-            if (landmarkDefinitions[cardType]) {
-                currentPlayer.landmarks[cardType] = true;
-            } else {
-                currentPlayer.buildings[cardType] = (currentPlayer.buildings[cardType] || 0) + 1;
+            const isLandmark = !!landmarkDefinitions[cardType];
+            const newCoins = currentPlayer.coins - card.cost;
+
+            // Send purchase to server
+            if (socket) {
+                socket.emit('game-action', {
+                    gameCode: gameState.gameCode,
+                    action: 'buy-card',
+                    actionData: {
+                        cardType,
+                        cardName: card.name,
+                        newCoins,
+                        isLandmark
+                    }
+                });
             }
 
-            addLogEntry(`${currentPlayer.name} bought ${card.name}`, 'player-action');
+            // Update local state immediately
+            handleCardPurchase({
+                cardType,
+                cardName: card.name,
+                newCoins,
+                isLandmark
+            });
+        }
+        
+        function handleCardPurchase(actionData) {
+            const currentPlayer = getCurrentPlayer();
+            currentPlayer.coins = actionData.newCoins;
+            
+            if (actionData.isLandmark) {
+                currentPlayer.landmarks[actionData.cardType] = true;
+            } else {
+                currentPlayer.buildings[actionData.cardType] = (currentPlayer.buildings[actionData.cardType] || 0) + 1;
+            }
+
+            addLogEntry(`${currentPlayer.name} bought ${actionData.cardName}`, 'player-action');
             
             // Check for win condition
             if (checkWinCondition(currentPlayer)) {
@@ -864,6 +953,20 @@
                 return;
             }
 
+            // Send turn end to server
+            if (socket) {
+                socket.emit('game-action', {
+                    gameCode: gameState.gameCode,
+                    action: 'end-turn',
+                    actionData: {}
+                });
+            }
+
+            // Update local state immediately
+            handleTurnEnd();
+        }
+        
+        function handleTurnEnd() {
             // Next player
             gameState.currentPlayerIndex = (gameState.currentPlayerIndex + 1) % gameState.players.length;
             if (gameState.currentPlayerIndex === 0) {

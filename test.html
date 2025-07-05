@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Game Connection Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .test-section { margin: 20px 0; padding: 15px; border: 1px solid #ccc; border-radius: 5px; }
+        button { padding: 10px 15px; margin: 5px; cursor: pointer; }
+        .result { margin: 10px 0; padding: 10px; background: #f0f0f0; border-radius: 3px; }
+    </style>
+</head>
+<body>
+    <h1>Game Connection Test</h1>
+    
+    <div class="test-section">
+        <h3>Test 1: Create and Join Game</h3>
+        <button onclick="testCreateAndJoin()">Test Create and Join</button>
+        <div id="result1" class="result"></div>
+    </div>
+    
+    <div class="test-section">
+        <h3>Test 2: localStorage vs inMemory</h3>
+        <button onclick="testStorageMethods()">Test Storage Methods</button>
+        <div id="result2" class="result"></div>
+    </div>
+    
+    <div class="test-section">
+        <h3>Test 3: Case Sensitivity</h3>
+        <button onclick="testCaseSensitivity()">Test Case Sensitivity</button>
+        <div id="result3" class="result"></div>
+    </div>
+
+    <script>
+        // In-memory game storage
+        let inMemoryGames = new Map();
+        
+        function createPlayer(name, id) {
+            return {
+                id: id,
+                name: name,
+                coins: 3,
+                buildings: { 'wheat-field': 1, 'bakery': 1 },
+                landmarks: {
+                    'train-station': false,
+                    'shopping-mall': false,
+                    'amusement-park': false,
+                    'radio-tower': false
+                }
+            };
+        }
+        
+        function generateGameCode() {
+            return Math.random().toString(36).substr(2, 6).toUpperCase();
+        }
+        
+        function testCreateAndJoin() {
+            const resultDiv = document.getElementById('result1');
+            resultDiv.innerHTML = 'Testing...';
+            
+            // Create a game
+            const gameCode = generateGameCode();
+            const hostData = {
+                gameCode: gameCode,
+                hostName: 'TestHost',
+                players: [createPlayer('TestHost', 'host')],
+                timestamp: Date.now()
+            };
+            
+            // Store in both localStorage and memory
+            localStorage.setItem(`game_${gameCode}`, JSON.stringify(hostData));
+            inMemoryGames.set(gameCode, hostData);
+            
+            // Try to join the game
+            let gameData = localStorage.getItem(`game_${gameCode}`);
+            if (!gameData) {
+                const inMemoryGame = inMemoryGames.get(gameCode);
+                if (inMemoryGame) {
+                    gameData = JSON.stringify(inMemoryGame);
+                }
+            }
+            
+            if (gameData) {
+                const parsedData = JSON.parse(gameData);
+                resultDiv.innerHTML = `
+                    <strong>✅ SUCCESS!</strong><br>
+                    Created game: ${gameCode}<br>
+                    Found game: ${parsedData.gameCode}<br>
+                    Host: ${parsedData.hostName}<br>
+                    Players: ${parsedData.players.length}
+                `;
+            } else {
+                resultDiv.innerHTML = '<strong>❌ FAILED!</strong> Could not find created game.';
+            }
+        }
+        
+        function testStorageMethods() {
+            const resultDiv = document.getElementById('result2');
+            resultDiv.innerHTML = 'Testing...';
+            
+            const gameCode = 'STORAGE123';
+            const hostData = {
+                gameCode: gameCode,
+                hostName: 'StorageTest',
+                players: [createPlayer('StorageTest', 'host')],
+                timestamp: Date.now()
+            };
+            
+            // Test localStorage only
+            localStorage.setItem(`game_${gameCode}`, JSON.stringify(hostData));
+            const localStorageFound = localStorage.getItem(`game_${gameCode}`);
+            
+            // Test inMemory only
+            localStorage.removeItem(`game_${gameCode}`);
+            inMemoryGames.set(gameCode, hostData);
+            const inMemoryFound = inMemoryGames.get(gameCode);
+            
+            // Try to find with fallback
+            let foundData = localStorage.getItem(`game_${gameCode}`);
+            if (!foundData && inMemoryFound) {
+                foundData = JSON.stringify(inMemoryFound);
+            }
+            
+            resultDiv.innerHTML = `
+                <strong>Storage Test Results:</strong><br>
+                localStorage only: ${localStorageFound ? '✅' : '❌'}<br>
+                inMemory only: ${inMemoryFound ? '✅' : '❌'}<br>
+                Fallback method: ${foundData ? '✅' : '❌'}
+            `;
+        }
+        
+        function testCaseSensitivity() {
+            const resultDiv = document.getElementById('result3');
+            resultDiv.innerHTML = 'Testing...';
+            
+            const gameCode = 'CASE123';
+            const hostData = {
+                gameCode: gameCode,
+                hostName: 'CaseTest',
+                players: [createPlayer('CaseTest', 'host')],
+                timestamp: Date.now()
+            };
+            
+            localStorage.setItem(`game_${gameCode}`, JSON.stringify(hostData));
+            
+            // Test different case variations
+            const testCases = ['case123', 'CASE123', 'Case123', 'cAsE123'];
+            const results = [];
+            
+            testCases.forEach(testCase => {
+                let found = localStorage.getItem(`game_${testCase}`);
+                if (!found) {
+                    // Try case-insensitive search
+                    const allKeys = Object.keys(localStorage).filter(key => key.startsWith('game_'));
+                    for (const key of allKeys) {
+                        try {
+                            const storedData = JSON.parse(localStorage.getItem(key));
+                            if (storedData.gameCode && storedData.gameCode.toUpperCase() === testCase.toUpperCase()) {
+                                found = localStorage.getItem(key);
+                                break;
+                            }
+                        } catch (e) {}
+                    }
+                }
+                results.push(`${testCase}: ${found ? '✅' : '❌'}`);
+            });
+            
+            resultDiv.innerHTML = `
+                <strong>Case Sensitivity Test:</strong><br>
+                ${results.join('<br>')}
+            `;
+        }
+    </script>
+</body>
+</html> 
