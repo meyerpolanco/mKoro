@@ -1,3 +1,5 @@
+MADE USING CURSOR
+
 # 🏠 Machi Koro - Online Multiplayer
 
 A real-time multiplayer version of the popular board game Machi Koro, built with Node.js, Socket.IO, and vanilla JavaScript.
