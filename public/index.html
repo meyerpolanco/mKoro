@@ -880,14 +880,17 @@
         }
 
         function processIncome() {
-            // Only process income if we're the one who rolled
-            if (getCurrentPlayer().id !== gameState.playerId) {
-                console.log('Skipping income processing - not our turn');
-                return;
-            }
-
             const roll = gameState.lastRoll.total;
-            console.log('Processing income for roll:', roll);
+            console.log('=================== INCOME PROCESSING START ===================');
+            console.log('Roll:', roll);
+            console.log('Current Player:', getCurrentPlayer().name, '(ID:', getCurrentPlayer().id, ')');
+            console.log('Our Player ID:', gameState.playerId);
+            console.log('All Players:', gameState.players.map(p => ({
+                name: p.name,
+                id: p.id,
+                coins: p.coins,
+                buildings: p.buildings
+            })));
             
             // Calculate all income changes first before applying them
             const coinUpdates = new Map(); // playerId -> coinChange
@@ -957,6 +960,19 @@
                 }
             });
             
+            // Log final state
+            console.log('=================== INCOME PROCESSING END ===================');
+            console.log('Final coin updates:', Array.from(coinUpdates.entries()).map(([id, change]) => {
+                const player = gameState.players.find(p => p.id === id);
+                return `${player.name}: ${change}`;
+            }));
+            console.log('Final player states:', gameState.players.map(p => ({
+                name: p.name,
+                id: p.id,
+                coins: p.coins,
+                buildings: p.buildings
+            })));
+
             // Send coin updates to server
             if (socket && coinUpdates.size > 0) {
                 const updates = Array.from(coinUpdates.entries()).map(([playerId, change]) => {
@@ -967,6 +983,7 @@
                     };
                 });
                 
+                console.log('Sending updates to server:', updates);
                 socket.emit('game-action', {
                     gameCode: gameState.gameCode,
                     action: 'update-coins',
