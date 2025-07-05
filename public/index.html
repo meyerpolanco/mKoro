@@ -1,0 +1,1269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Machi Koro - Multiplayer</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Arial', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            color: white;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        .connection-panel {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            margin-bottom: 30px;
+        }
+
+        .game-board {
+            display: none;
+            background: white;
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+
+        .btn {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 25px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin: 10px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0,0,0,0.3);
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .input-group {
+            margin: 15px 0;
+        }
+
+        .input-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #555;
+        }
+
+        .input-group input {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: border-color 0.3s;
+        }
+
+        .input-group input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .players-list {
+            margin: 20px 0;
+        }
+
+        .player-card {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 15px;
+            margin: 10px 0;
+            border-left: 4px solid #667eea;
+        }
+
+        .player-card.current-player {
+            border-left-color: #28a745;
+            background: #e8f5e9;
+        }
+
+        .player-stats {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .game-info {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 10px;
+        }
+
+        .dice-section {
+            text-align: center;
+            margin: 20px 0;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 10px;
+        }
+
+        .dice {
+            font-size: 3em;
+            margin: 0 10px;
+            padding: 10px;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            display: inline-block;
+            min-width: 80px;
+        }
+
+        .cards-section {
+            margin: 20px 0;
+        }
+
+        .cards-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin: 10px 0;
+        }
+
+        .card {
+            background: white;
+            border-radius: 8px;
+            padding: 10px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border: 2px solid transparent;
+            min-width: 120px;
+            text-align: center;
+        }
+
+        .card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        }
+
+        .card.selected {
+            border-color: #667eea;
+            background: #e3f2fd;
+        }
+
+        .card.unavailable {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .card-name {
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .card-cost {
+            color: #666;
+            font-size: 0.9em;
+        }
+
+        .card-effect {
+            font-size: 0.8em;
+            color: #888;
+            margin-top: 5px;
+        }
+
+        .landmarks {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 10px 0;
+        }
+
+        .log {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 20px 0;
+            max-height: 200px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 14px;
+        }
+
+        .log-entry {
+            margin: 5px 0;
+            padding: 5px;
+            border-radius: 4px;
+        }
+
+        .log-entry.game-event {
+            background: #e3f2fd;
+            border-left: 3px solid #2196f3;
+        }
+
+        .log-entry.player-action {
+            background: #e8f5e9;
+            border-left: 3px solid #4caf50;
+        }
+
+        .status-message {
+            text-align: center;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 8px;
+            font-weight: bold;
+        }
+
+        .status-message.info {
+            background: #e3f2fd;
+            color: #1976d2;
+        }
+
+        .status-message.success {
+            background: #e8f5e9;
+            color: #388e3c;
+        }
+
+        .status-message.warning {
+            background: #fff3e0;
+            color: #f57c00;
+        }
+
+        .status-message.error {
+            background: #ffebee;
+            color: #d32f2f;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 10px;
+            }
+            
+            .header h1 {
+                font-size: 2em;
+            }
+            
+            .player-stats {
+                flex-direction: column;
+                gap: 10px;
+            }
+            
+            .game-info {
+                flex-direction: column;
+                gap: 10px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🏠 Machi Koro</h1>
+            <p>Build your town, roll the dice, collect coins!</p>
+        </div>
+
+        <div class="connection-panel" id="connectionPanel">
+            <h2>Join or Create Game</h2>
+            
+            <div class="input-group">
+                <label for="playerName">Your Name:</label>
+                <input type="text" id="playerName" placeholder="Enter your name" value="Player">
+            </div>
+
+            <div>
+                <button class="btn" id="hostGameBtn">Host New Game</button>
+                <button class="btn" id="joinGameBtn">Join Game</button>
+                <button class="btn" id="debugBtn" style="background: #ff9800;">Debug Info</button>
+                <button class="btn" id="testBtn" style="background: #9c27b0;">Test Connection</button>
+            </div>
+
+            <div class="input-group" id="gameCodeGroup" style="display: none;">
+                <label for="gameCode">Game Code:</label>
+                <input type="text" id="gameCode" placeholder="Enter game code">
+            </div>
+
+            <div id="connectionStatus" class="status-message info" style="display: none;"></div>
+            
+            <div id="playersWaiting" style="display: none;">
+                <h3>Players in Lobby:</h3>
+                <div id="playersList"></div>
+                <button class="btn" id="startGameBtn" style="display: none;">Start Game</button>
+            </div>
+        </div>
+
+        <div class="game-board" id="gameBoard">
+            <div class="game-info">
+                <div>
+                    <strong>Current Player:</strong> <span id="currentPlayer"></span>
+                </div>
+                <div>
+                    <strong>Turn:</strong> <span id="turnNumber">1</span>
+                </div>
+                <div>
+                    <strong>Phase:</strong> <span id="gamePhase">Roll Dice</span>
+                </div>
+            </div>
+
+            <div class="dice-section">
+                <div id="diceResult" style="display: none;">
+                    <div class="dice" id="dice1">?</div>
+                    <div class="dice" id="dice2" style="display: none;">?</div>
+                    <div><strong>Total: <span id="diceTotal">0</span></strong></div>
+                </div>
+                <button class="btn" id="rollDiceBtn">Roll Dice</button>
+                <div id="diceOptions" style="display: none; margin-top: 10px;">
+                    <button class="btn" id="rollOneDie">Roll 1 Die</button>
+                    <button class="btn" id="rollTwoDice">Roll 2 Dice</button>
+                </div>
+                <div id="turnActions" style="display: none; margin-top: 10px;">
+                    <button class="btn" id="skipTurnBtn" style="background: #ff9800;">Skip Turn (Don't Buy)</button>
+                </div>
+            </div>
+
+            <div class="players-list">
+                <h3>Players:</h3>
+                <div id="gamePlayersList"></div>
+            </div>
+
+            <div class="cards-section">
+                <h3>Your Buildings:</h3>
+                <div id="playerBuildings" class="cards-row"></div>
+                
+                <h3>Available Cards:</h3>
+                <div id="availableCards" class="cards-row"></div>
+            </div>
+
+            <div class="landmarks">
+                <h3>Your Landmarks:</h3>
+                <div id="playerLandmarks" class="cards-row"></div>
+            </div>
+
+            <div class="log" id="gameLog"></div>
+        </div>
+    </div>
+
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <script>
+        // Game state and networking
+        let gameState = {
+            players: [],
+            currentPlayerIndex: 0,
+            turn: 1,
+            phase: 'roll', // roll, income, buy
+            lastRoll: null,
+            deck: [],
+            isHost: false,
+            gameStarted: false,
+            playerId: null,
+            gameCode: null
+        };
+
+        // Socket.io connection for online multiplayer
+        let socket = null;
+        let isConnected = false;
+
+        // WebRTC connections for star topology
+        let connections = new Map(); // playerId -> RTCPeerConnection
+        let isHost = false;
+        let hostConnection = null;
+
+        // Card definitions
+        const cardDefinitions = {
+            'wheat-field': { name: 'Wheat Field', cost: 1, color: 'blue', activation: [1], income: 1, effect: 'Get 1 coin from bank on anyone\'s turn' },
+            'ranch': { name: 'Ranch', cost: 1, color: 'blue', activation: [2], income: 1, effect: 'Get 1 coin from bank on anyone\'s turn' },
+            'forest': { name: 'Forest', cost: 3, color: 'blue', activation: [5], income: 1, effect: 'Get 1 coin from bank on anyone\'s turn' },
+            'mine': { name: 'Mine', cost: 6, color: 'blue', activation: [9], income: 5, effect: 'Get 5 coins from bank on anyone\'s turn' },
+            'bakery': { name: 'Bakery', cost: 1, color: 'green', activation: [2, 3], income: 1, effect: 'Get 1 coin from bank on your turn' },
+            'convenience-store': { name: 'Convenience Store', cost: 2, color: 'green', activation: [4], income: 3, effect: 'Get 3 coins from bank on your turn' },
+            'cheese-factory': { name: 'Cheese Factory', cost: 5, color: 'green', activation: [7], income: 3, effect: 'Get 3 coins per Ranch from bank on your turn' },
+            'furniture-factory': { name: 'Furniture Factory', cost: 3, color: 'green', activation: [8], income: 3, effect: 'Get 3 coins per Forest from bank on your turn' },
+            'cafe': { name: 'Cafe', cost: 2, color: 'red', activation: [3], income: 1, effect: 'Get 1 coin from active player on their turn' },
+            'family-restaurant': { name: 'Family Restaurant', cost: 3, color: 'red', activation: [9, 10], income: 2, effect: 'Get 2 coins from active player on their turn' },
+        };
+
+        const landmarkDefinitions = {
+            'train-station': { name: 'Train Station', cost: 4, effect: 'Choose to roll 1 or 2 dice' },
+            'shopping-mall': { name: 'Shopping Mall', cost: 10, effect: 'Restaurants and Shops earn +1 coin' },
+            'amusement-park': { name: 'Amusement Park', cost: 16, effect: 'Take another turn on doubles' },
+            'radio-tower': { name: 'Radio Tower', cost: 22, effect: 'Reroll dice once per turn' }
+        };
+
+        // Initialize game
+        function initializeGame() {
+            setupEventListeners();
+            generateGameCode();
+        }
+
+        function setupEventListeners() {
+            document.getElementById('hostGameBtn').addEventListener('click', hostGame);
+            document.getElementById('joinGameBtn').addEventListener('click', showJoinForm);
+            document.getElementById('startGameBtn').addEventListener('click', startGame);
+            document.getElementById('rollDiceBtn').addEventListener('click', rollDice);
+            document.getElementById('rollOneDie').addEventListener('click', () => rollDice(1));
+            document.getElementById('rollTwoDice').addEventListener('click', () => rollDice(2));
+            document.getElementById('skipTurnBtn').addEventListener('click', skipTurn);
+            document.getElementById('debugBtn').addEventListener('click', showDebugInfo);
+            document.getElementById('testBtn').addEventListener('click', testGameConnection);
+            
+            // Game code input
+            document.getElementById('gameCode').addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    joinGame();
+                }
+            });
+        }
+        
+        function setupSocketListeners() {
+            if (!socket) return;
+            
+            socket.on('connect', () => {
+                console.log('Connected to server');
+                isConnected = true;
+                gameState.playerId = socket.id;
+                showStatus('Connected to server!', 'success');
+            });
+            
+            socket.on('disconnect', () => {
+                console.log('Disconnected from server');
+                isConnected = false;
+                showStatus('Disconnected from server', 'error');
+            });
+            
+            socket.on('connect_error', (error) => {
+                console.error('Connection error:', error);
+                showStatus('Connection error: ' + error.message, 'error');
+            });
+            
+            socket.on('game-hosted', (data) => {
+                console.log('Game hosted successfully:', data);
+                gameState.gameCode = data.gameCode;
+                gameState.players = data.game.players;
+                gameState.isHost = true;
+                isHost = true;
+                
+                showStatus(`Game created! Share this code: ${data.gameCode}`, 'success');
+                
+                // Show game code prominently
+                const connectionPanel = document.getElementById('connectionPanel');
+                const codeDisplay = document.createElement('div');
+                codeDisplay.style.cssText = `
+                    background: #e8f5e9;
+                    border: 2px solid #4caf50;
+                    border-radius: 10px;
+                    padding: 20px;
+                    margin: 20px 0;
+                    text-align: center;
+                    font-size: 24px;
+                    font-weight: bold;
+                    color: #2e7d32;
+                `;
+                codeDisplay.innerHTML = `
+                    <div>🎮 Game Code:</div>
+                    <div style="font-size: 36px; margin: 10px 0; letter-spacing: 3px;">${data.gameCode}</div>
+                    <div style="font-size: 14px; color: #666;">Share this code with other players</div>
+                `;
+                connectionPanel.insertBefore(codeDisplay, document.getElementById('playersWaiting'));
+                
+                showLobby();
+            });
+            
+            socket.on('game-joined', (data) => {
+                console.log('Joined game successfully:', data);
+                gameState.gameCode = data.game.id;
+                gameState.players = data.game.players;
+                gameState.isHost = false;
+                isHost = false;
+                
+                showStatus('Connected to game!', 'success');
+                
+                // Show connection info
+                const connectionPanel = document.getElementById('connectionPanel');
+                const connectionInfo = document.createElement('div');
+                connectionInfo.style.cssText = `
+                    background: #e3f2fd;
+                    border: 2px solid #2196f3;
+                    border-radius: 10px;
+                    padding: 15px;
+                    margin: 20px 0;
+                    text-align: center;
+                `;
+                connectionInfo.innerHTML = `
+                    <div><strong>✅ Connected to game</strong></div>
+                    <div>Game Code: ${data.game.id}</div>
+                    <div style="font-size: 12px; color: #666; margin-top: 5px;">
+                        Waiting for host to start the game...
+                    </div>
+                `;
+                connectionPanel.insertBefore(connectionInfo, document.getElementById('playersWaiting'));
+                
+                showLobby();
+            });
+            
+            socket.on('join-error', (data) => {
+                showStatus(data.message, 'error');
+            });
+            
+            socket.on('player-joined', (data) => {
+                console.log('Player joined:', data);
+                gameState.players = data.players;
+                updatePlayersList();
+                addLogEntry(`${data.player.name} joined the game`, 'game-event');
+            });
+            
+            socket.on('player-left', (data) => {
+                console.log('Player left:', data);
+                gameState.players = data.players;
+                updatePlayersList();
+                addLogEntry('A player left the game', 'game-event');
+            });
+            
+            socket.on('game-started', (data) => {
+                console.log('Game started:', data);
+                gameState = { ...gameState, ...data.game };
+                gameState.gameStarted = true;
+                handleGameStarted(data);
+            });
+            
+            socket.on('game-action', (data) => {
+                console.log('Received game action:', data);
+                handleGameAction(data.action, data.actionData);
+            });
+            
+            socket.on('game-state-update', (data) => {
+                console.log('Game state updated from server:', data);
+                console.log('Previous game state:', gameState);
+                
+                // Update game state from server
+                gameState = { ...gameState, ...data.game };
+                
+                console.log('New game state:', gameState);
+                
+                // Reset UI elements based on server state
+                const rollDiceBtn = document.getElementById('rollDiceBtn');
+                const turnActions = document.getElementById('turnActions');
+                const diceResult = document.getElementById('diceResult');
+                const diceOptions = document.getElementById('diceOptions');
+                
+                if (rollDiceBtn) {
+                    rollDiceBtn.disabled = !isCurrentPlayer() || gameState.phase !== 'roll';
+                    rollDiceBtn.style.display = 'block';
+                }
+                
+                if (turnActions) {
+                    turnActions.style.display = (gameState.phase === 'buy' && isCurrentPlayer()) ? 'block' : 'none';
+                }
+                
+                // Only hide dice result when moving to a new turn's roll phase
+                if (diceResult && gameState.phase === 'roll' && !gameState.lastRoll) {
+                    diceResult.style.display = 'none';
+                } else if (diceResult && gameState.lastRoll) {
+                    // Show dice result if there is a roll
+                    diceResult.style.display = 'block';
+                    document.getElementById('dice1').textContent = gameState.lastRoll.dice1;
+                    if (gameState.lastRoll.dice2) {
+                        document.getElementById('dice2').style.display = 'inline-block';
+                        document.getElementById('dice2').textContent = gameState.lastRoll.dice2;
+                    } else {
+                        document.getElementById('dice2').style.display = 'none';
+                    }
+                    document.getElementById('diceTotal').textContent = gameState.lastRoll.total;
+                }
+                
+                if (diceOptions) {
+                    diceOptions.style.display = 'none';
+                }
+                
+                updateGameDisplay();
+            });
+        }
+        
+        function showDebugInfo() {
+            console.log('=== DEBUG INFO ===');
+            console.log('Socket connected:', isConnected);
+            console.log('Current gameState:', gameState);
+            console.log('Is host:', isHost);
+            
+            let debugText = '=== DEBUG INFO ===\n';
+            debugText += `Socket connected: ${isConnected}\n`;
+            debugText += `Is host: ${isHost}\n`;
+            debugText += `Game code: ${gameState.gameCode}\n`;
+            debugText += `Players: ${gameState.players.length}\n`;
+            debugText += `Game started: ${gameState.gameStarted}\n`;
+            
+            alert(debugText);
+        }
+        
+        function testGameConnection() {
+            if (!socket) {
+                alert('Not connected to server. Please host or join a game first.');
+                return;
+            }
+            
+            alert(`Connection test:\nSocket connected: ${isConnected}\nGame code: ${gameState.gameCode || 'None'}\nPlayers: ${gameState.players.length}`);
+        }
+
+        function generateGameCode() {
+            const code = Math.random().toString(36).substr(2, 6).toUpperCase();
+            console.log('Generated game code:', code);
+            return code;
+        }
+
+        async function hostGame() {
+            const playerName = document.getElementById('playerName').value.trim();
+            if (!playerName) {
+                showStatus('Please enter your name', 'error');
+                return;
+            }
+
+            // Connect to server if not already connected
+            if (!socket) {
+                try {
+                    socket = io();
+                    setupSocketListeners();
+                    
+                    // Wait a moment for connection
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+                } catch (error) {
+                    console.error('Failed to connect to server:', error);
+                    showStatus('Failed to connect to server', 'error');
+                    return;
+                }
+            }
+
+            if (!isConnected) {
+                showStatus('Not connected to server. Please try again.', 'error');
+                return;
+            }
+
+            const gameCode = generateGameCode();
+            
+            showStatus('Creating game...', 'info');
+            
+            // Host game on server
+            socket.emit('host-game', { playerName, gameCode });
+            
+            // Add timeout in case server doesn't respond
+            setTimeout(() => {
+                if (!gameState.gameCode) {
+                    showStatus('Game creation timed out. Please try again.', 'error');
+                }
+            }, 10000);
+        }
+
+        function showJoinForm() {
+            document.getElementById('gameCodeGroup').style.display = 'block';
+            document.getElementById('joinGameBtn').textContent = 'Connect';
+            document.getElementById('joinGameBtn').onclick = joinGame;
+        }
+
+        async function joinGame() {
+            const playerName = document.getElementById('playerName').value.trim();
+            const gameCode = document.getElementById('gameCode').value.trim().toUpperCase();
+            
+            if (!playerName || !gameCode) {
+                showStatus('Please enter your name and game code', 'error');
+                return;
+            }
+
+            // Connect to server if not already connected
+            if (!socket) {
+                socket = io();
+                setupSocketListeners();
+            }
+
+            showStatus('Connecting to game...', 'info');
+            
+            // Join game on server
+            socket.emit('join-game', { playerName, gameCode });
+        }
+
+        function createPlayer(name, id) {
+            return {
+                id: id,
+                name: name,
+                coins: 3,
+                buildings: {
+                    'wheat-field': 1,
+                    'bakery': 1
+                },
+                landmarks: {
+                    'train-station': false,
+                    'shopping-mall': false,
+                    'amusement-park': false,
+                    'radio-tower': false
+                }
+            };
+        }
+
+        function showLobby() {
+            document.getElementById('playersWaiting').style.display = 'block';
+            if (isHost) {
+                document.getElementById('startGameBtn').style.display = 'block';
+            }
+            updatePlayersList();
+        }
+
+        function updatePlayersList() {
+            const playersList = document.getElementById('playersList');
+            playersList.innerHTML = '';
+            
+            gameState.players.forEach((player, index) => {
+                const playerDiv = document.createElement('div');
+                playerDiv.className = 'player-card';
+                playerDiv.innerHTML = `
+                    <strong>${player.name}</strong> ${player.id === 'host' ? '(Host)' : ''}
+                `;
+                playersList.appendChild(playerDiv);
+            });
+        }
+
+        function startGame() {
+            if (gameState.players.length < 2) {
+                showStatus('Need at least 2 players to start', 'error');
+                return;
+            }
+
+            if (isHost && socket) {
+                // Host starts the game on server
+                socket.emit('start-game', { gameCode: gameState.gameCode });
+            }
+        }
+        
+        function handleGameStarted(data) {
+            gameState.gameStarted = true;
+            gameState.currentPlayerIndex = 0;
+            gameState.turn = 1;
+            gameState.phase = 'roll';
+            
+            // Hide connection panel and show game board
+            document.getElementById('connectionPanel').style.display = 'none';
+            document.getElementById('gameBoard').style.display = 'block';
+            
+            updateGameDisplay();
+            addLogEntry('Game started!', 'game-event');
+        }
+
+        function rollDice(numDice = null) {
+            if (!isCurrentPlayer()) {
+                showStatus('It\'s not your turn!', 'error');
+                return;
+            }
+
+            if (gameState.phase !== 'roll') {
+                showStatus('Not the right phase to roll dice!', 'error');
+                return;
+            }
+
+            let diceCount = numDice;
+            if (!diceCount) {
+                // Check if player has train station
+                const currentPlayer = getCurrentPlayer();
+                if (currentPlayer.landmarks['train-station']) {
+                    // Show dice options
+                    document.getElementById('diceOptions').style.display = 'block';
+                    document.getElementById('rollDiceBtn').style.display = 'none';
+                    return;
+                } else {
+                    diceCount = 1;
+                }
+            }
+
+            // Hide dice options
+            document.getElementById('diceOptions').style.display = 'none';
+            document.getElementById('rollDiceBtn').style.display = 'block';
+
+            // Roll dice
+            const dice1 = Math.floor(Math.random() * 6) + 1;
+            const dice2 = diceCount === 2 ? Math.floor(Math.random() * 6) + 1 : 0;
+            const total = dice1 + dice2;
+
+            const rollResult = {
+                dice1: dice1,
+                dice2: dice2,
+                total: total,
+                isDouble: diceCount === 2 && dice1 === dice2
+            };
+
+            // Send dice roll to server
+            if (socket) {
+                socket.emit('game-action', {
+                    gameCode: gameState.gameCode,
+                    action: 'roll-dice',
+                    actionData: { rollResult }
+                });
+            }
+
+            // Update local display immediately
+            handleDiceRoll(rollResult);
+        }
+        
+        function handleDiceRoll(rollResult) {
+            gameState.lastRoll = rollResult;
+
+            // Update dice display
+            document.getElementById('dice1').textContent = rollResult.dice1;
+            if (rollResult.dice2) {
+                document.getElementById('dice2').style.display = 'inline-block';
+                document.getElementById('dice2').textContent = rollResult.dice2;
+            } else {
+                document.getElementById('dice2').style.display = 'none';
+            }
+            document.getElementById('diceTotal').textContent = rollResult.total;
+            document.getElementById('diceResult').style.display = 'block';
+
+            addLogEntry(`${getCurrentPlayer().name} rolled ${rollResult.total}`, 'player-action');
+
+            // Process income phase
+            processIncome();
+            
+            // Move to buy phase
+            gameState.phase = 'buy';
+            document.getElementById('rollDiceBtn').disabled = true;
+            document.getElementById('turnActions').style.display = 'block';
+            
+            updateGameDisplay();
+        }
+        
+        function handleGameAction(action, actionData) {
+            console.log('Handling game action:', action, actionData);
+            switch (action) {
+                case 'roll-dice':
+                    handleDiceRoll(actionData.rollResult);
+                    break;
+                case 'buy-card':
+                    handleCardPurchase(actionData);
+                    break;
+                case 'end-turn':
+                    console.log('Handling end-turn action');
+                    handleTurnEnd();
+                    break;
+                default:
+                    console.log('Unknown action:', action);
+            }
+        }
+
+        function processIncome() {
+            const roll = gameState.lastRoll.total;
+            
+            // Process all players for blue cards (everyone gets income)
+            gameState.players.forEach(player => {
+                Object.entries(player.buildings).forEach(([cardType, count]) => {
+                    if (count > 0) {
+                        const card = cardDefinitions[cardType];
+                        if (card && card.color === 'blue' && card.activation.includes(roll)) {
+                            let income = card.income * count;
+                            player.coins += income;
+                            addLogEntry(`${player.name} earned ${income} coins from ${card.name}`, 'game-event');
+                        }
+                    }
+                });
+            });
+
+            // Process current player for green cards
+            const currentPlayer = getCurrentPlayer();
+            Object.entries(currentPlayer.buildings).forEach(([cardType, count]) => {
+                if (count > 0) {
+                    const card = cardDefinitions[cardType];
+                    if (card && card.color === 'green' && card.activation.includes(roll)) {
+                        let income = card.income * count;
+                        
+                        // Special handling for factories
+                        if (cardType === 'cheese-factory') {
+                            income = (currentPlayer.buildings['ranch'] || 0) * 3;
+                        } else if (cardType === 'furniture-factory') {
+                            income = (currentPlayer.buildings['forest'] || 0) * 3;
+                        }
+                        
+                        currentPlayer.coins += income;
+                        addLogEntry(`${currentPlayer.name} earned ${income} coins from ${card.name}`, 'game-event');
+                    }
+                }
+            });
+
+            // Process red cards (restaurants) - take from current player
+            gameState.players.forEach(player => {
+                if (player.id === getCurrentPlayer().id) return;
+                
+                Object.entries(player.buildings).forEach(([cardType, count]) => {
+                    if (count > 0) {
+                        const card = cardDefinitions[cardType];
+                        if (card && card.color === 'red' && card.activation.includes(roll)) {
+                            let income = card.income * count;
+                            const taken = Math.min(income, currentPlayer.coins);
+                            currentPlayer.coins -= taken;
+                            player.coins += taken;
+                            addLogEntry(`${player.name} took ${taken} coins from ${currentPlayer.name} (${card.name})`, 'game-event');
+                        }
+                    }
+                });
+            });
+        }
+
+        function getCurrentPlayer() {
+            return gameState.players[gameState.currentPlayerIndex];
+        }
+
+        function isCurrentPlayer() {
+            return getCurrentPlayer().id === gameState.playerId;
+        }
+
+        function buyCard(cardType) {
+            if (!isCurrentPlayer()) {
+                showStatus('It\'s not your turn!', 'error');
+                return;
+            }
+
+            if (gameState.phase !== 'buy') {
+                showStatus('Not the right phase to buy cards!', 'error');
+                return;
+            }
+
+            const currentPlayer = getCurrentPlayer();
+            const card = cardDefinitions[cardType] || landmarkDefinitions[cardType];
+            
+            if (!card) return;
+
+            if (currentPlayer.coins < card.cost) {
+                showStatus('Not enough coins!', 'error');
+                return;
+            }
+
+            const isLandmark = !!landmarkDefinitions[cardType];
+            const newCoins = currentPlayer.coins - card.cost;
+
+            // Send purchase to server
+            if (socket) {
+                socket.emit('game-action', {
+                    gameCode: gameState.gameCode,
+                    action: 'buy-card',
+                    actionData: {
+                        cardType,
+                        cardName: card.name,
+                        newCoins,
+                        isLandmark
+                    }
+                });
+            }
+
+            // Update local state immediately
+            handleCardPurchase({
+                cardType,
+                cardName: card.name,
+                newCoins,
+                isLandmark
+            });
+        }
+        
+        function handleCardPurchase(actionData) {
+            const currentPlayer = getCurrentPlayer();
+            currentPlayer.coins = actionData.newCoins;
+            
+            if (actionData.isLandmark) {
+                currentPlayer.landmarks[actionData.cardType] = true;
+            } else {
+                currentPlayer.buildings[actionData.cardType] = (currentPlayer.buildings[actionData.cardType] || 0) + 1;
+            }
+
+            addLogEntry(`${currentPlayer.name} bought ${actionData.cardName}`, 'player-action');
+            
+            // Check for win condition
+            if (checkWinCondition(currentPlayer)) {
+                addLogEntry(`${currentPlayer.name} wins!`, 'game-event');
+                showStatus(`${currentPlayer.name} wins!`, 'success');
+                return;
+            }
+
+            // End turn
+            endTurn();
+        }
+
+        function checkWinCondition(player) {
+            return Object.values(player.landmarks).every(built => built);
+        }
+
+        function skipTurn() {
+            if (!isCurrentPlayer()) {
+                showStatus('It\'s not your turn!', 'error');
+                return;
+            }
+
+            if (gameState.phase !== 'buy') {
+                showStatus('Can only skip during buy phase!', 'error');
+                return;
+            }
+
+            addLogEntry(`${getCurrentPlayer().name} skipped their turn`, 'player-action');
+            
+            // Send skip turn action to server
+            if (socket) {
+                socket.emit('game-action', {
+                    gameCode: gameState.gameCode,
+                    action: 'end-turn',
+                    actionData: { skipped: true }
+                });
+            }
+
+            // Don't update local state - wait for server response
+            // The server will send game-state-update which will handle the UI
+        }
+
+        function endTurn() {
+            // Check for amusement park double roll
+            const currentPlayer = getCurrentPlayer();
+            if (currentPlayer.landmarks['amusement-park'] && gameState.lastRoll.isDouble) {
+                addLogEntry(`${currentPlayer.name} gets another turn (doubles + amusement park)!`, 'game-event');
+                gameState.phase = 'roll';
+                document.getElementById('rollDiceBtn').disabled = false;
+                document.getElementById('turnActions').style.display = 'none';
+                updateGameDisplay();
+                return;
+            }
+
+            // Send turn end to server
+            if (socket) {
+                socket.emit('game-action', {
+                    gameCode: gameState.gameCode,
+                    action: 'end-turn',
+                    actionData: {}
+                });
+            }
+
+            // Update local state immediately
+            handleTurnEnd();
+        }
+        
+        function handleTurnEnd() {
+            console.log('Handling turn end, current player index:', gameState.currentPlayerIndex);
+            
+            // Next player
+            gameState.currentPlayerIndex = (gameState.currentPlayerIndex + 1) % gameState.players.length;
+            if (gameState.currentPlayerIndex === 0) {
+                gameState.turn++;
+            }
+            
+            // Reset to roll phase
+            gameState.phase = 'roll';
+            gameState.lastRoll = null; // Clear the last roll when moving to next player
+            
+            console.log('New current player index:', gameState.currentPlayerIndex);
+            console.log('New phase:', gameState.phase);
+            
+            // Reset UI elements
+            document.getElementById('rollDiceBtn').disabled = false;
+            document.getElementById('rollDiceBtn').style.display = 'block';
+            document.getElementById('turnActions').style.display = 'none';
+            document.getElementById('diceResult').style.display = 'none'; // Hide dice result when turn ends
+            document.getElementById('diceOptions').style.display = 'none';
+            
+            updateGameDisplay();
+        }
+
+        function updateGameDisplay() {
+            // Update game info
+            document.getElementById('currentPlayer').textContent = getCurrentPlayer().name;
+            document.getElementById('turnNumber').textContent = gameState.turn;
+            document.getElementById('gamePhase').textContent = gameState.phase === 'roll' ? 'Roll Dice' : 'Buy Cards';
+
+            // Update players list
+            updateGamePlayersList();
+            
+            // Update player's buildings and landmarks
+            updatePlayerBuildings();
+            updatePlayerLandmarks();
+            
+            // Update available cards
+            updateAvailableCards();
+            
+            // Update UI elements based on current player and phase
+            const rollDiceBtn = document.getElementById('rollDiceBtn');
+            const turnActions = document.getElementById('turnActions');
+            
+            if (rollDiceBtn) {
+                rollDiceBtn.disabled = !isCurrentPlayer() || gameState.phase !== 'roll';
+            }
+            
+            if (turnActions) {
+                turnActions.style.display = (gameState.phase === 'buy' && isCurrentPlayer()) ? 'block' : 'none';
+            }
+            
+            // Update skip button visibility
+            updateSkipButton();
+        }
+
+        function updateGamePlayersList() {
+            const playersList = document.getElementById('gamePlayersList');
+            playersList.innerHTML = '';
+            
+            gameState.players.forEach((player, index) => {
+                const playerDiv = document.createElement('div');
+                playerDiv.className = 'player-card';
+                if (index === gameState.currentPlayerIndex) {
+                    playerDiv.classList.add('current-player');
+                }
+                
+                const landmarkCount = Object.values(player.landmarks).filter(built => built).length;
+                
+                playerDiv.innerHTML = `
+                    <div class="player-stats">
+                        <div><strong>${player.name}</strong></div>
+                        <div>💰 ${player.coins}</div>
+                        <div>🏛️ ${landmarkCount}/4</div>
+                    </div>
+                `;
+                playersList.appendChild(playerDiv);
+            });
+        }
+
+        function updatePlayerBuildings() {
+            const buildingsDiv = document.getElementById('playerBuildings');
+            buildingsDiv.innerHTML = '';
+            
+            const currentPlayer = getCurrentPlayer();
+            Object.entries(currentPlayer.buildings).forEach(([cardType, count]) => {
+                if (count > 0) {
+                    const card = cardDefinitions[cardType];
+                    if (card) {
+                        const cardDiv = document.createElement('div');
+                        cardDiv.className = 'card';
+                        cardDiv.innerHTML = `
+                            <div class="card-name">${card.name}</div>
+                            <div class="card-cost">Count: ${count}</div>
+                            <div class="card-effect">${card.effect}</div>
+                        `;
+                        buildingsDiv.appendChild(cardDiv);
+                    }
+                }
+            });
+        }
+
+        function updatePlayerLandmarks() {
+            const landmarksDiv = document.getElementById('playerLandmarks');
+            landmarksDiv.innerHTML = '';
+            
+            const currentPlayer = getCurrentPlayer();
+            Object.entries(currentPlayer.landmarks).forEach(([landmarkType, built]) => {
+                const landmark = landmarkDefinitions[landmarkType];
+                if (landmark) {
+                    const landmarkDiv = document.createElement('div');
+                    landmarkDiv.className = 'card';
+                    if (built) {
+                        landmarkDiv.classList.add('selected');
+                    }
+                    landmarkDiv.innerHTML = `
+                        <div class="card-name">${landmark.name}</div>
+                        <div class="card-cost">💰 ${landmark.cost}</div>
+                        <div class="card-effect">${landmark.effect}</div>
+                    `;
+                    
+                    if (!built && gameState.phase === 'buy' && isCurrentPlayer()) {
+                        landmarkDiv.onclick = () => buyCard(landmarkType);
+                    }
+                    
+                    landmarksDiv.appendChild(landmarkDiv);
+                }
+            });
+        }
+
+        function updateAvailableCards() {
+            const cardsDiv = document.getElementById('availableCards');
+            cardsDiv.innerHTML = '';
+            
+            Object.entries(cardDefinitions).forEach(([cardType, card]) => {
+                const cardDiv = document.createElement('div');
+                cardDiv.className = 'card';
+                
+                const currentPlayer = getCurrentPlayer();
+                const canAfford = currentPlayer.coins >= card.cost;
+                const canBuy = gameState.phase === 'buy' && isCurrentPlayer() && canAfford;
+                
+                if (!canAfford) {
+                    cardDiv.classList.add('unavailable');
+                }
+                
+                cardDiv.innerHTML = `
+                    <div class="card-name">${card.name}</div>
+                    <div class="card-cost">💰 ${card.cost}</div>
+                    <div class="card-effect">${card.effect}</div>
+                `;
+                
+                if (canBuy) {
+                    cardDiv.onclick = () => buyCard(cardType);
+                }
+                
+                cardsDiv.appendChild(cardDiv);
+            });
+        }
+
+        function addLogEntry(message, type = 'game-event') {
+            const logDiv = document.getElementById('gameLog');
+            const entry = document.createElement('div');
+            entry.className = `log-entry ${type}`;
+            entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            logDiv.appendChild(entry);
+            logDiv.scrollTop = logDiv.scrollHeight;
+        }
+
+        function showStatus(message, type = 'info') {
+            const statusDiv = document.getElementById('connectionStatus');
+            statusDiv.textContent = message;
+            statusDiv.className = `status-message ${type}`;
+            statusDiv.style.display = 'block';
+            
+            // Auto-hide after 3 seconds for non-error messages
+            if (type !== 'error') {
+                setTimeout(() => {
+                    statusDiv.style.display = 'none';
+                }, 3000);
+            }
+        }
+
+        // Initialize the game when page loads
+        window.addEventListener('load', initializeGame);
+
+        // Update the display to show/hide skip button
+        function updateSkipButton() {
+            const skipButton = document.getElementById('skipTurnBtn');
+            if (skipButton) {
+                skipButton.style.display = (gameState.phase === 'buy' && isCurrentPlayer()) ? 'inline-block' : 'none';
+            }
+        }
+    </script>
+</body>
+</html>
