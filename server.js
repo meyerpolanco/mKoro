@@ -5,6 +5,7 @@ import cors from 'cors';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
 import path from 'path';
+import { cardDefinitions } from './src/game/cards.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -134,6 +135,57 @@ io.on('connection', (socket) => {
                 game.lastRoll = actionData.rollResult;
                 game.phase = 'buy';
                 console.log(`Dice rolled: ${actionData.rollResult.total}`);
+
+                // Process income on server side
+                const roll = actionData.rollResult.total;
+                console.log('Processing income for roll:', roll);
+                
+                // Process all players' income
+                game.players.forEach(player => {
+                    const isCurrentPlayer = player.id === socket.id;
+                    
+                    // Process each building
+                    Object.entries(player.buildings).forEach(([cardType, count]) => {
+                        if (count > 0) {
+                            // Get card definition
+                            const card = cardDefinitions[cardType];
+                            if (!card || !card.activation.includes(roll)) return;
+                            
+                            // Blue cards activate for everyone
+                            if (card.color === 'blue') {
+                                const income = card.income * count;
+                                player.coins += income;
+                                console.log(`${player.name} earned ${income} coins from ${card.name}`);
+                            }
+                            // Green cards only activate for current player
+                            else if (card.color === 'green' && isCurrentPlayer) {
+                                let income = card.income * count;
+                                
+                                // Special handling for factories
+                                if (cardType === 'cheese-factory') {
+                                    income = (player.buildings['ranch'] || 0) * 3;
+                                } else if (cardType === 'furniture-factory') {
+                                    income = (player.buildings['forest'] || 0) * 3;
+                                }
+                                
+                                player.coins += income;
+                                console.log(`${player.name} earned ${income} coins from ${card.name}`);
+                            }
+                            // Red cards take from current player
+                            else if (card.color === 'red' && !isCurrentPlayer) {
+                                const income = card.income * count;
+                                const currentPlayer = game.players[game.currentPlayerIndex];
+                                const taken = Math.min(income, currentPlayer.coins);
+                                
+                                if (taken > 0) {
+                                    currentPlayer.coins -= taken;
+                                    player.coins += taken;
+                                    console.log(`${player.name} took ${taken} coins from ${currentPlayer.name} (${card.name})`);
+                                }
+                            }
+                        }
+                    });
+                });
             } else if (action === 'buy-card') {
                 // Update player state
                 const player = game.players.find(p => p.id === socket.id);

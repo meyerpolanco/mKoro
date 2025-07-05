@@ -219,9 +219,6 @@ export function handleDiceRoll(rollResult) {
     document.getElementById('diceResult').style.display = 'block';
 
     addLogEntry(`${getCurrentPlayer().name} rolled ${rollResult.total}`, 'player-action');
-
-    // Process income phase
-    processIncome();
     
     // Move to buy phase
     gameState.phase = 'buy';
@@ -284,63 +281,6 @@ export function handleTurnEnd() {
     document.getElementById('diceOptions').style.display = 'none';
     
     updateGameDisplay();
-}
-
-function processIncome() {
-    const roll = gameState.lastRoll.total;
-    
-    // Process all players for blue cards (everyone gets income)
-    gameState.players.forEach(player => {
-        Object.entries(player.buildings).forEach(([cardType, count]) => {
-            if (count > 0) {
-                const card = cardDefinitions[cardType];
-                if (card && card.color === 'blue' && card.activation.includes(roll)) {
-                    let income = card.income * count;
-                    player.coins += income;
-                    addLogEntry(`${player.name} earned ${income} coins from ${card.name}`, 'game-event');
-                }
-            }
-        });
-    });
-
-    // Process current player for green cards
-    const currentPlayer = getCurrentPlayer();
-    Object.entries(currentPlayer.buildings).forEach(([cardType, count]) => {
-        if (count > 0) {
-            const card = cardDefinitions[cardType];
-            if (card && card.color === 'green' && card.activation.includes(roll)) {
-                let income = card.income * count;
-                
-                // Special handling for factories
-                if (cardType === 'cheese-factory') {
-                    income = (currentPlayer.buildings['ranch'] || 0) * 3;
-                } else if (cardType === 'furniture-factory') {
-                    income = (currentPlayer.buildings['forest'] || 0) * 3;
-                }
-                
-                currentPlayer.coins += income;
-                addLogEntry(`${currentPlayer.name} earned ${income} coins from ${card.name}`, 'game-event');
-            }
-        }
-    });
-
-    // Process red cards (restaurants) - take from current player
-    gameState.players.forEach(player => {
-        if (player.id === getCurrentPlayer().id) return;
-        
-        Object.entries(player.buildings).forEach(([cardType, count]) => {
-            if (count > 0) {
-                const card = cardDefinitions[cardType];
-                if (card && card.color === 'red' && card.activation.includes(roll)) {
-                    let income = card.income * count;
-                    const taken = Math.min(income, currentPlayer.coins);
-                    currentPlayer.coins -= taken;
-                    player.coins += taken;
-                    addLogEntry(`${player.name} took ${taken} coins from ${currentPlayer.name} (${card.name})`, 'game-event');
-                }
-            }
-        });
-    });
 }
 
 export function buyCard(cardType) {
