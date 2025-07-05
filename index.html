@@ -376,7 +376,7 @@
         </div>
     </div>
 
-    <script src="/socket.io/socket.io.js"></script>
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
     <script>
         // Game state and networking
         let gameState = {
@@ -453,11 +453,18 @@
                 console.log('Connected to server');
                 isConnected = true;
                 gameState.playerId = socket.id;
+                showStatus('Connected to server!', 'success');
             });
             
             socket.on('disconnect', () => {
                 console.log('Disconnected from server');
                 isConnected = false;
+                showStatus('Disconnected from server', 'error');
+            });
+            
+            socket.on('connect_error', (error) => {
+                console.error('Connection error:', error);
+                showStatus('Connection error: ' + error.message, 'error');
             });
             
             socket.on('game-hosted', (data) => {
@@ -602,8 +609,22 @@
 
             // Connect to server if not already connected
             if (!socket) {
-                socket = io();
-                setupSocketListeners();
+                try {
+                    socket = io();
+                    setupSocketListeners();
+                    
+                    // Wait a moment for connection
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+                } catch (error) {
+                    console.error('Failed to connect to server:', error);
+                    showStatus('Failed to connect to server', 'error');
+                    return;
+                }
+            }
+
+            if (!isConnected) {
+                showStatus('Not connected to server. Please try again.', 'error');
+                return;
             }
 
             const gameCode = generateGameCode();
@@ -612,6 +633,13 @@
             
             // Host game on server
             socket.emit('host-game', { playerName, gameCode });
+            
+            // Add timeout in case server doesn't respond
+            setTimeout(() => {
+                if (!gameState.gameCode) {
+                    showStatus('Game creation timed out. Please try again.', 'error');
+                }
+            }, 10000);
         }
 
         function showJoinForm() {
