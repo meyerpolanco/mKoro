@@ -352,6 +352,9 @@
                     <button class="btn" id="rollOneDie">Roll 1 Die</button>
                     <button class="btn" id="rollTwoDice">Roll 2 Dice</button>
                 </div>
+                <div id="turnActions" style="display: none; margin-top: 10px;">
+                    <button class="btn" id="skipTurnBtn" style="background: #ff9800;">Skip Turn (Don't Buy)</button>
+                </div>
             </div>
 
             <div class="players-list">
@@ -435,6 +438,7 @@
             document.getElementById('rollDiceBtn').addEventListener('click', rollDice);
             document.getElementById('rollOneDie').addEventListener('click', () => rollDice(1));
             document.getElementById('rollTwoDice').addEventListener('click', () => rollDice(2));
+            document.getElementById('skipTurnBtn').addEventListener('click', skipTurn);
             document.getElementById('debugBtn').addEventListener('click', showDebugInfo);
             document.getElementById('testBtn').addEventListener('click', testGameConnection);
             
@@ -813,6 +817,7 @@
             // Move to buy phase
             gameState.phase = 'buy';
             document.getElementById('rollDiceBtn').disabled = true;
+            document.getElementById('turnActions').style.display = 'block';
             
             updateGameDisplay();
         }
@@ -970,6 +975,21 @@
             return Object.values(player.landmarks).every(built => built);
         }
 
+        function skipTurn() {
+            if (!isCurrentPlayer()) {
+                showStatus('It\'s not your turn!', 'error');
+                return;
+            }
+
+            if (gameState.phase !== 'buy') {
+                showStatus('Can only skip during buy phase!', 'error');
+                return;
+            }
+
+            addLogEntry(`${getCurrentPlayer().name} skipped their turn`, 'player-action');
+            endTurn();
+        }
+
         function endTurn() {
             // Check for amusement park double roll
             const currentPlayer = getCurrentPlayer();
@@ -977,6 +997,7 @@
                 addLogEntry(`${currentPlayer.name} gets another turn (doubles + amusement park)!`, 'game-event');
                 gameState.phase = 'roll';
                 document.getElementById('rollDiceBtn').disabled = false;
+                document.getElementById('turnActions').style.display = 'none';
                 updateGameDisplay();
                 return;
             }
@@ -1003,6 +1024,7 @@
             
             gameState.phase = 'roll';
             document.getElementById('rollDiceBtn').disabled = false;
+            document.getElementById('turnActions').style.display = 'none';
             
             updateGameDisplay();
         }
@@ -1022,6 +1044,12 @@
             
             // Update available cards
             updateAvailableCards();
+            
+            // Update turn actions visibility
+            const turnActions = document.getElementById('turnActions');
+            if (turnActions) {
+                turnActions.style.display = (gameState.phase === 'buy' && isCurrentPlayer()) ? 'block' : 'none';
+            }
         }
 
         function updateGamePlayersList() {
