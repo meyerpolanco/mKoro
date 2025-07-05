@@ -990,6 +990,12 @@
                 showStatus('Not the right phase to buy cards!', 'error');
                 return;
             }
+            
+            // Check if player has already made a purchase this turn
+            if (document.getElementById('turnActions').style.display === 'none') {
+                showStatus('You can only buy one card per turn!', 'error');
+                return;
+            }
 
             const currentPlayer = getCurrentPlayer();
             const card = cardDefinitions[cardType] || landmarkDefinitions[cardType];
@@ -1044,14 +1050,20 @@
             addLogEntry(`${player.name} bought ${actionData.cardName}`, 'player-action');
             
             // Check for win condition
-            if (checkWinCondition(currentPlayer)) {
-                addLogEntry(`${currentPlayer.name} wins!`, 'game-event');
-                showStatus(`${currentPlayer.name} wins!`, 'success');
+            if (checkWinCondition(player)) {
+                addLogEntry(`${player.name} wins!`, 'game-event');
+                showStatus(`${player.name} wins!`, 'success');
                 return;
             }
 
-            // End turn
-            endTurn();
+            // If this is our purchase, end our turn
+            if (player.id === gameState.playerId) {
+                endTurn();
+            }
+            
+            // Hide buy buttons after any purchase
+            document.getElementById('turnActions').style.display = 'none';
+            updateAvailableCards(); // This will disable card buying
         }
 
         function checkWinCondition(player) {
@@ -1258,7 +1270,8 @@
                 
                 const currentPlayer = getCurrentPlayer();
                 const canAfford = currentPlayer.coins >= card.cost;
-                const canBuy = gameState.phase === 'buy' && isCurrentPlayer() && canAfford;
+                const turnActionsHidden = document.getElementById('turnActions').style.display === 'none';
+                const canBuy = gameState.phase === 'buy' && isCurrentPlayer() && canAfford && !turnActionsHidden;
                 
                 if (!canAfford) {
                     cardDiv.classList.add('unavailable');
