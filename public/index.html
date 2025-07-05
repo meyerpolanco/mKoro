@@ -850,11 +850,8 @@
 
             addLogEntry(`${getCurrentPlayer().name} rolled ${rollResult.total}`, 'player-action');
 
-            // Only process income if we're the one who rolled
-            if (getCurrentPlayer().id === gameState.playerId) {
-                // Process income phase
-                processIncome();
-            }
+            // Process income phase
+            processIncome();
             
             // Move to buy phase
             gameState.phase = 'buy';
@@ -883,89 +880,93 @@
         }
 
         function processIncome() {
+            // Only process income if we're the one who rolled
+            if (getCurrentPlayer().id !== gameState.playerId) {
+                console.log('Skipping income processing - not our turn');
+                return;
+            }
+
             const roll = gameState.lastRoll.total;
             console.log('Processing income for roll:', roll);
             
             // Calculate all income changes first before applying them
             const coinUpdates = new Map(); // playerId -> coinChange
+            const currentPlayer = getCurrentPlayer();
             
             // Process all players
             gameState.players.forEach(player => {
-                const isCurrentPlayer = player.id === getCurrentPlayer().id;
+                const isCurrentPlayer = player.id === currentPlayer.id;
                 
                 // Process each building
                 Object.entries(player.buildings).forEach(([cardType, count]) => {
                     if (count > 0) {
                         const card = cardDefinitions[cardType];
-                        if (!card) return;
+                        if (!card || !card.activation.includes(roll)) return;
                         
-                        // Only process if card activates on this roll
-                        if (card.activation.includes(roll)) {
-                            // Blue cards activate for everyone
-                            if (card.color === 'blue') {
-                                console.log('Processing blue card:', cardType, 'for player:', player.name);
-                                let income = card.income * count;
-                                const currentCoins = coinUpdates.get(player.id) || 0;
-                                coinUpdates.set(player.id, currentCoins + income);
-                                addLogEntry(`${player.name} earned ${income} coins from ${card.name}`, 'game-event');
-                            }
-                            // Green cards only activate for current player
-                            else if (card.color === 'green' && isCurrentPlayer) {
-                                console.log('Processing green card:', cardType, 'for current player:', player.name);
-                                let income = card.income * count;
-                                
-                                // Special handling for factories
-                                if (cardType === 'cheese-factory') {
-                                    income = (player.buildings['ranch'] || 0) * 3;
-                                } else if (cardType === 'furniture-factory') {
-                                    income = (player.buildings['forest'] || 0) * 3;
-                                }
-                                
-                                const currentCoins = coinUpdates.get(player.id) || 0;
-                                coinUpdates.set(player.id, currentCoins + income);
-                                addLogEntry(`${player.name} earned ${income} coins from ${card.name}`, 'game-event');
-                            }
-                        }
-                    }
-                });
-            });
-
-            // Process red cards (restaurants) - take from current player
-            gameState.players.forEach(player => {
-                if (player.id === getCurrentPlayer().id) return;
-                
-                Object.entries(player.buildings).forEach(([cardType, count]) => {
-                    if (count > 0) {
-                        const card = cardDefinitions[cardType];
-                        console.log('Checking red card:', cardType, card);
-                        if (card && card.color === 'red' && card.activation.includes(roll)) {
+                        // Blue cards activate for everyone
+                        if (card.color === 'blue') {
+                            console.log('Processing blue card:', cardType, 'for player:', player.name);
                             let income = card.income * count;
-                            const taken = Math.min(income, currentPlayer.coins);
+                            const currentCoins = coinUpdates.get(player.id) || 0;
+                            coinUpdates.set(player.id, currentCoins + income);
+                            addLogEntry(`${player.name} earned ${income} coins from ${card.name}`, 'game-event');
+                        }
+                        // Green cards only activate for current player
+                        else if (card.color === 'green' && isCurrentPlayer) {
+                            console.log('Processing green card:', cardType, 'for current player:', player.name);
+                            let income = card.income * count;
                             
-                            // Update coin changes for both players
-                            const currentPlayerCoins = coinUpdates.get(currentPlayer.id) || 0;
-                            const otherPlayerCoins = coinUpdates.get(player.id) || 0;
-                            coinUpdates.set(currentPlayer.id, currentPlayerCoins - taken);
-                            coinUpdates.set(player.id, otherPlayerCoins + taken);
+                            // Special handling for factories
+                            if (cardType === 'cheese-factory') {
+                                income = (player.buildings['ranch'] || 0) * 3;
+                            } else if (cardType === 'furniture-factory') {
+                                income = (player.buildings['forest'] || 0) * 3;
+                            }
                             
-                            addLogEntry(`${player.name} took ${taken} coins from ${currentPlayer.name} (${card.name})`, 'game-event');
+                            const currentCoins = coinUpdates.get(player.id) || 0;
+                            coinUpdates.set(player.id, currentCoins + income);
+                            addLogEntry(`${player.name} earned ${income} coins from ${card.name}`, 'game-event');
+                        }
+                        // Red cards take from current player
+                        else if (card.color === 'red' && !isCurrentPlayer) {
+                            console.log('Processing red card:', cardType, 'for player:', player.name);
+                            let income = card.income * count;
+                            const currentPlayerTotal = currentPlayer.coins + (coinUpdates.get(currentPlayer.id) || 0);
+                            const taken = Math.min(income, currentPlayerTotal);
+                            
+                            if (taken > 0) {
+                                const playerCoins = coinUpdates.get(player.id) || 0;
+                                const currentPlayerCoins = coinUpdates.get(currentPlayer.id) || 0;
+                                
+                                coinUpdates.set(player.id, playerCoins + taken);
+                                coinUpdates.set(currentPlayer.id, currentPlayerCoins - taken);
+                                
+                                addLogEntry(`${player.name} took ${taken} coins from ${currentPlayer.name} (${card.name})`, 'game-event');
+                            }
                         }
                     }
                 });
             });
             
-            // Apply all coin updates at once and send to server
+            // Apply all coin updates at once
+            coinUpdates.forEach((change, playerId) => {
+                const player = gameState.players.find(p => p.id === playerId);
+                if (player) {
+                    console.log(`Updating ${player.name}'s coins by ${change}`);
+                    player.coins += change;
+                }
+            });
+            
+            // Send coin updates to server
             if (socket && coinUpdates.size > 0) {
-                const updates = [];
-                coinUpdates.forEach((coinChange, playerId) => {
+                const updates = Array.from(coinUpdates.entries()).map(([playerId, change]) => {
                     const player = gameState.players.find(p => p.id === playerId);
-                    if (player) {
-                        player.coins += coinChange;
-                        updates.push({ playerId, coins: player.coins });
-                    }
+                    return {
+                        playerId: playerId,
+                        coins: player.coins
+                    };
                 });
                 
-                // Send a single update to the server with all changes
                 socket.emit('game-action', {
                     gameCode: gameState.gameCode,
                     action: 'update-coins',
