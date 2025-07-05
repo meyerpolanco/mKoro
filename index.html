@@ -823,6 +823,7 @@
         }
         
         function handleGameAction(action, actionData) {
+            console.log('Handling game action:', action, actionData);
             switch (action) {
                 case 'roll-dice':
                     handleDiceRoll(actionData.rollResult);
@@ -831,8 +832,11 @@
                     handleCardPurchase(actionData);
                     break;
                 case 'end-turn':
+                    console.log('Handling end-turn action');
                     handleTurnEnd();
                     break;
+                default:
+                    console.log('Unknown action:', action);
             }
         }
 
@@ -1027,6 +1031,8 @@
         }
         
         function handleTurnEnd() {
+            console.log('Handling turn end, current player index:', gameState.currentPlayerIndex);
+            
             // Next player
             gameState.currentPlayerIndex = (gameState.currentPlayerIndex + 1) % gameState.players.length;
             if (gameState.currentPlayerIndex === 0) {
@@ -1035,6 +1041,9 @@
             
             // Reset to roll phase
             gameState.phase = 'roll';
+            
+            console.log('New current player index:', gameState.currentPlayerIndex);
+            console.log('New phase:', gameState.phase);
             
             // Reset UI elements
             document.getElementById('rollDiceBtn').disabled = false;
