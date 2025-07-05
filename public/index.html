@@ -850,8 +850,13 @@
 
             addLogEntry(`${getCurrentPlayer().name} rolled ${rollResult.total}`, 'player-action');
 
-            // Process income phase
-            processIncome();
+            // Only the player who rolled processes income
+            if (getCurrentPlayer().id === gameState.playerId) {
+                console.log('We are the rolling player, processing income');
+                processIncome();
+            } else {
+                console.log('We are not the rolling player, skipping income processing');
+            }
             
             // Move to buy phase
             gameState.phase = 'buy';

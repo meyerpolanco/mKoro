@@ -147,29 +147,32 @@ io.on('connection', (socket) => {
                         console.log(`${player.name} bought building: ${actionData.cardType}`);
                     }
                 }
-            } else if (action === 'update-coins') {
+            }             else if (action === 'update-coins') {
                 console.log('Processing coin update:', actionData);
                 // Only process updates from the current player to avoid duplicates
                 if (socket.id === game.players[game.currentPlayerIndex].id) {
+                    console.log('Update is from current player, processing...');
                     if (actionData.updates) {
                         // Handle multiple player updates
                         actionData.updates.forEach(update => {
                             const player = game.players.find(p => p.id === update.playerId);
                             if (player) {
+                                console.log(`Updating ${player.name}'s coins from ${player.coins} to ${update.coins}`);
                                 player.coins = update.coins;
-                                console.log(`Updated ${player.name}'s coins to ${player.coins}`);
                             }
                         });
                     } else {
                         // Handle single player update
                         const player = game.players.find(p => p.id === actionData.playerId);
                         if (player) {
+                            console.log(`Updating ${player.name}'s coins from ${player.coins} to ${actionData.coins}`);
                             player.coins = actionData.coins;
-                            console.log(`Updated ${player.name}'s coins to ${player.coins}`);
                         }
                     }
+                    // Broadcast the update to all players
+                    io.to(gameCode).emit('game-state-update', { game });
                 } else {
-                    console.log('Ignoring coin update from non-current player');
+                    console.log('Ignoring coin update from non-current player:', socket.id);
                 }
             } else if (action === 'end-turn') {
                 console.log(`End turn action received. Current player index: ${game.currentPlayerIndex}`);
