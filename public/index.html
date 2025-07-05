@@ -850,8 +850,11 @@
 
             addLogEntry(`${getCurrentPlayer().name} rolled ${rollResult.total}`, 'player-action');
 
-            // Process income phase
-            processIncome();
+            // Only process income if we're the one who rolled
+            if (getCurrentPlayer().id === gameState.playerId) {
+                // Process income phase
+                processIncome();
+            }
             
             // Move to buy phase
             gameState.phase = 'buy';
@@ -883,6 +886,9 @@
             const roll = gameState.lastRoll.total;
             console.log('Processing income for roll:', roll);
             
+            // Calculate all income changes first before applying them
+            const coinUpdates = new Map(); // playerId -> coinChange
+            
             // Process all players for blue cards (everyone gets income)
             gameState.players.forEach(player => {
                 Object.entries(player.buildings).forEach(([cardType, count]) => {
@@ -891,17 +897,9 @@
                         console.log('Checking blue card:', cardType, card);
                         if (card && card.color === 'blue' && card.activation.includes(roll)) {
                             let income = card.income * count;
-                            player.coins += income;
+                            const currentCoins = coinUpdates.get(player.id) || 0;
+                            coinUpdates.set(player.id, currentCoins + income);
                             addLogEntry(`${player.name} earned ${income} coins from ${card.name}`, 'game-event');
-                            
-                            // Send game state update to server
-                            if (socket) {
-                                socket.emit('game-action', {
-                                    gameCode: gameState.gameCode,
-                                    action: 'update-coins',
-                                    actionData: { playerId: player.id, coins: player.coins }
-                                });
-                            }
                         }
                     }
                 });
@@ -923,17 +921,9 @@
                             income = (currentPlayer.buildings['forest'] || 0) * 3;
                         }
                         
-                        currentPlayer.coins += income;
+                        const currentCoins = coinUpdates.get(currentPlayer.id) || 0;
+                        coinUpdates.set(currentPlayer.id, currentCoins + income);
                         addLogEntry(`${currentPlayer.name} earned ${income} coins from ${card.name}`, 'game-event');
-                        
-                        // Send game state update to server
-                        if (socket) {
-                            socket.emit('game-action', {
-                                gameCode: gameState.gameCode,
-                                action: 'update-coins',
-                                actionData: { playerId: currentPlayer.id, coins: currentPlayer.coins }
-                            });
-                        }
                     }
                 }
             });
@@ -949,27 +939,37 @@
                         if (card && card.color === 'red' && card.activation.includes(roll)) {
                             let income = card.income * count;
                             const taken = Math.min(income, currentPlayer.coins);
-                            currentPlayer.coins -= taken;
-                            player.coins += taken;
-                            addLogEntry(`${player.name} took ${taken} coins from ${currentPlayer.name} (${card.name})`, 'game-event');
                             
-                            // Send game state update to server
-                            if (socket) {
-                                socket.emit('game-action', {
-                                    gameCode: gameState.gameCode,
-                                    action: 'update-coins',
-                                    actionData: { 
-                                        updates: [
-                                            { playerId: currentPlayer.id, coins: currentPlayer.coins },
-                                            { playerId: player.id, coins: player.coins }
-                                        ]
-                                    }
-                                });
-                            }
+                            // Update coin changes for both players
+                            const currentPlayerCoins = coinUpdates.get(currentPlayer.id) || 0;
+                            const otherPlayerCoins = coinUpdates.get(player.id) || 0;
+                            coinUpdates.set(currentPlayer.id, currentPlayerCoins - taken);
+                            coinUpdates.set(player.id, otherPlayerCoins + taken);
+                            
+                            addLogEntry(`${player.name} took ${taken} coins from ${currentPlayer.name} (${card.name})`, 'game-event');
                         }
                     }
                 });
             });
+            
+            // Apply all coin updates at once and send to server
+            if (socket && coinUpdates.size > 0) {
+                const updates = [];
+                coinUpdates.forEach((coinChange, playerId) => {
+                    const player = gameState.players.find(p => p.id === playerId);
+                    if (player) {
+                        player.coins += coinChange;
+                        updates.push({ playerId, coins: player.coins });
+                    }
+                });
+                
+                // Send a single update to the server with all changes
+                socket.emit('game-action', {
+                    gameCode: gameState.gameCode,
+                    action: 'update-coins',
+                    actionData: { updates }
+                });
+            }
         }
 
         function getCurrentPlayer() {
